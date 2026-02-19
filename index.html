@@ -1,0 +1,3882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="PaisaPlay — AI Gamified Student Expense Manager">
+<meta name="theme-color" content="#0a0a0f">
+<title>PaisaPlay — Student Money OS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,400&display=swap" rel="stylesheet">
+<!-- FIX #1: Load Supabase via UMD build for reliable global access -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+/* ===== CSS VARIABLES ===== */
+:root {
+  --bg: #0a0a0f;
+  --bg2: #111118;
+  --bg3: #1a1a28;
+  --card: #16161f;
+  --card2: #1e1e2e;
+  --border: #2a2a3e;
+  --border2: #3a3a55;
+  --text: #e8e8f0;
+  --text2: #9090b0;
+  /* FIX #2: Corrected malformed hex color --text3 (was #6060808 — 7 digits) */
+  --text3: #606080;
+  --accent: #7c3aed;
+  --accent2: #a855f7;
+  --accent3: #c084fc;
+  --green: #10b981;
+  --green2: #34d399;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --red2: #f87171;
+  --blue: #3b82f6;
+  --cyan: #06b6d4;
+  --pink: #ec4899;
+  --orange: #f97316;
+  --glow: 0 0 30px rgba(124,58,237,0.3);
+  --glow-green: 0 0 20px rgba(16,185,129,0.3);
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  --radius: 16px;
+  --radius2: 12px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Subtle noise texture — pointer-events none so it never blocks clicks */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  /* FIX #3: z-index lowered from 9999 — it was blocking ALL click events */
+  z-index: 0;
+  opacity: 0.4;
+}
+
+h1, h2, h3, h4 { font-family: 'Syne', sans-serif; }
+.mono { font-family: 'Space Mono', monospace; }
+
+/* ===== AUTH SCREEN ===== */
+#auth-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at 20% 50%, rgba(124,58,237,0.15) 0%, transparent 50%),
+              radial-gradient(ellipse at 80% 20%, rgba(6,182,212,0.1) 0%, transparent 50%),
+              var(--bg);
+  padding: 20px;
+}
+
+.auth-container { width: 100%; max-width: 440px; }
+
+.auth-logo {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.auth-logo .logo-icon {
+  font-size: 56px;
+  display: block;
+  margin-bottom: 12px;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%,100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.auth-logo h1 {
+  font-size: 36px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #a855f7, #06b6d4);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -1px;
+}
+
+.auth-logo p {
+  color: var(--text2);
+  margin-top: 6px;
+  font-size: 14px;
+}
+
+.auth-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 36px;
+  box-shadow: var(--shadow), 0 0 60px rgba(124,58,237,0.08);
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 28px;
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text2);
+  font-family: 'Syne', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.auth-tab.active {
+  background: var(--accent);
+  color: white;
+  box-shadow: 0 2px 12px rgba(124,58,237,0.4);
+}
+
+.form-group { margin-bottom: 16px; }
+
+.form-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 8px;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 13px 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  transition: all 0.2s;
+  outline: none;
+  /* FIX #4: Add appearance reset for selects on iOS */
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.form-group select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239090b0' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(124,58,237,0.15);
+}
+
+.form-group input::placeholder { color: var(--text2); opacity: 0.6; }
+
+.btn-primary {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border: none;
+  border-radius: 12px;
+  color: white;
+  font-family: 'Syne', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent, rgba(255,255,255,0.1));
+  opacity: 0;
+  transition: opacity 0.2s;
+  /* FIX #5: Ensure pseudo-element doesn't intercept pointer events */
+  pointer-events: none;
+}
+
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(124,58,237,0.5); }
+.btn-primary:hover::after { opacity: 1; }
+.btn-primary:active { transform: translateY(0); }
+/* FIX #6: Disabled state for buttons during async operations */
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.auth-error {
+  background: rgba(239,68,68,0.1);
+  border: 1px solid rgba(239,68,68,0.3);
+  border-radius: 10px;
+  padding: 12px 16px;
+  color: var(--red2);
+  font-size: 14px;
+  margin-bottom: 16px;
+  display: none;
+}
+
+/* ===== MAIN APP ===== */
+#app { display: none; min-height: 100vh; }
+
+/* TOP NAV */
+.topnav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: rgba(10,10,15,0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nav-logo {
+  font-family: 'Syne', sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #a855f7, #06b6d4);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.xp-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.xp-pill .level-badge {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: white;
+}
+
+.streak-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--orange);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.avatar-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--cyan));
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+/* BOTTOM NAV */
+.bottomnav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: rgba(10,10,15,0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid var(--border);
+  display: flex;
+  padding: 8px 0;
+  /* FIX #7: Safe area for iPhone notch/home indicator */
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+}
+
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text2);
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+
+.nav-item.active { color: var(--accent2); }
+.nav-item .nav-icon { font-size: 20px; }
+.nav-item .nav-label {
+  font-size: 10px;
+  font-weight: 600;
+  font-family: 'Syne', sans-serif;
+}
+
+/* MAIN CONTENT */
+.main-content {
+  padding-top: 60px;
+  padding-bottom: 80px;
+  min-height: 100vh;
+}
+
+/* PAGES */
+.page { display: none; padding: 20px; animation: fadeIn 0.3s ease; }
+.page.active { display: block; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* CARDS */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.card-sm {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+  padding: 16px;
+}
+
+/* HERO BALANCE CARD */
+.balance-hero {
+  background: linear-gradient(135deg, #1a0a35 0%, #0d1a30 50%, #0a1a1a 100%);
+  border: 1px solid var(--border2);
+  border-radius: 24px;
+  padding: 28px 24px;
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.balance-hero::before {
+  content: '';
+  position: absolute;
+  top: -60px; right: -60px;
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, rgba(124,58,237,0.3) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.balance-hero::after {
+  content: '';
+  position: absolute;
+  bottom: -40px; left: 40px;
+  width: 120px; height: 120px;
+  background: radial-gradient(circle, rgba(6,182,212,0.2) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.balance-label {
+  font-size: 12px;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.balance-amount {
+  font-family: 'Syne', sans-serif;
+  font-size: 44px;
+  font-weight: 800;
+  color: white;
+  line-height: 1;
+  margin-bottom: 16px;
+  position: relative;
+  z-index: 1;
+}
+
+.balance-amount .currency { font-size: 24px; color: var(--accent3); }
+
+.balance-row {
+  display: flex;
+  gap: 12px;
+  position: relative;
+  z-index: 1;
+}
+
+.balance-stat {
+  flex: 1;
+  background: rgba(255,255,255,0.05);
+  border-radius: 12px;
+  padding: 10px 8px;
+  text-align: center;
+}
+
+.balance-stat .stat-val {
+  font-family: 'Syne', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 2px;
+  /* FIX #8: Prevent text overflow on small screens */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.balance-stat .stat-lbl {
+  font-size: 10px;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* SURVIVAL METER */
+.survival-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.survival-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.risk-badge {
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'Syne', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.risk-safe   { background: rgba(16,185,129,0.2); color: var(--green2); border: 1px solid rgba(16,185,129,0.3); }
+.risk-warning{ background: rgba(245,158,11,0.2); color: var(--yellow); border: 1px solid rgba(245,158,11,0.3); }
+.risk-critical{background: rgba(239,68,68,0.2);  color: var(--red2);   border: 1px solid rgba(239,68,68,0.3); animation: pulseRed 1.5s ease-in-out infinite; }
+
+@keyframes pulseRed {
+  0%,100% { box-shadow: none; }
+  50%      { box-shadow: 0 0 12px rgba(239,68,68,0.4); }
+}
+
+.progress-bar-bg {
+  background: var(--bg);
+  border-radius: 20px;
+  height: 10px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 20px;
+  transition: width 1s ease;
+  min-width: 0;
+}
+
+.survival-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.surv-stat {
+  text-align: center;
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 10px 6px;
+}
+
+.surv-stat .val {
+  font-family: 'Space Mono', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.surv-stat .lbl {
+  font-size: 10px;
+  color: var(--text2);
+  margin-top: 2px;
+}
+
+/* QUICK ACTIONS */
+.quick-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.qa-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+  padding: 14px 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+  color: var(--text);
+}
+
+.qa-btn:hover {
+  border-color: var(--accent);
+  background: rgba(124,58,237,0.1);
+  transform: translateY(-2px);
+}
+
+.qa-icon  { font-size: 22px; }
+.qa-label {
+  font-size: 10px;
+  font-weight: 600;
+  font-family: 'Syne', sans-serif;
+  text-align: center;
+  color: var(--text2);
+  line-height: 1.2;
+}
+
+/* SECTION HEADERS */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.section-link {
+  font-size: 13px;
+  color: var(--accent2);
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-family: 'DM Sans', sans-serif;
+}
+
+/* RECENT EXPENSES */
+.expense-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.expense-item:last-child { border-bottom: none; }
+
+.expense-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.expense-info { flex: 1; min-width: 0; }
+.expense-name {
+  font-weight: 500;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.expense-meta { font-size: 12px; color: var(--text2); margin-top: 2px; }
+.expense-amount {
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--red2);
+  white-space: nowrap;
+}
+
+/* CATEGORY BG COLORS */
+.cat-food         { background: rgba(245,158,11,0.15); }
+.cat-rent         { background: rgba(59,130,246,0.15); }
+.cat-travel       { background: rgba(16,185,129,0.15); }
+.cat-education    { background: rgba(139,92,246,0.15); }
+.cat-shopping     { background: rgba(236,72,153,0.15); }
+.cat-entertainment{ background: rgba(249,115,22,0.15); }
+.cat-health       { background: rgba(6,182,212,0.15); }
+.cat-other        { background: rgba(100,116,139,0.15); }
+.cat-subscription { background: rgba(239,68,68,0.15); }
+
+/* HEALTH SCORE RING */
+.health-score-container {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+}
+
+.score-ring {
+  position: relative;
+  width: 90px;
+  height: 90px;
+  flex-shrink: 0;
+}
+
+/* FIX #9: SVG rotation applied correctly; transform-origin for cross-browser */
+.score-ring svg {
+  transform: rotate(-90deg);
+  transform-origin: center;
+  display: block;
+}
+
+.score-ring .score-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.score-number {
+  font-family: 'Syne', sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.score-label { font-size: 9px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
+.health-info h3 { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+.health-info p  { font-size: 13px; color: var(--text2); line-height: 1.5; }
+
+/* MODAL */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  /* FIX #10: z-index must be above body::before (was 9999) but below toast (500) */
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+.modal-overlay.open {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.modal {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 24px 24px 0 0;
+  padding: 28px 24px;
+  /* FIX #11: Add safe-area padding at bottom for iPhone home bar */
+  padding-bottom: max(28px, calc(28px + env(safe-area-inset-bottom)));
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.modal-overlay.open .modal { transform: translateY(0); }
+
+.modal-handle {
+  width: 40px;
+  height: 4px;
+  background: var(--border2);
+  border-radius: 2px;
+  margin: 0 auto 20px;
+}
+
+.modal-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 24px;
+}
+
+/* CATEGORY GRID */
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.cat-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 6px;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: none;
+  color: var(--text);
+}
+
+.cat-option:hover   { border-color: var(--accent); background: rgba(124,58,237,0.1); }
+.cat-option.selected{ border-color: var(--accent); background: rgba(124,58,237,0.15); }
+.cat-option .cat-emoji{ font-size: 22px; }
+.cat-option .cat-name {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text2);
+  text-align: center;
+  font-family: 'Syne', sans-serif;
+}
+
+/* MOOD SELECTOR */
+.mood-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  /* FIX #12: Hide scrollbar visually but keep scrollability */
+  scrollbar-width: none;
+}
+.mood-row::-webkit-scrollbar { display: none; }
+
+.mood-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 14px;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: none;
+  color: var(--text);
+  flex-shrink: 0;
+  min-width: 60px;
+}
+
+.mood-btn.selected         { border-color: var(--accent); background: rgba(124,58,237,0.1); }
+.mood-btn span:first-child { font-size: 20px; }
+.mood-btn span:last-child  { font-size: 10px; font-weight: 600; color: var(--text2); }
+
+/* GAMIFICATION PAGE */
+.level-card {
+  background: linear-gradient(135deg, #1a0a35, #0d1a30);
+  border: 1px solid var(--border2);
+  border-radius: 24px;
+  padding: 24px;
+  margin-bottom: 16px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.level-card::before {
+  content: '';
+  position: absolute;
+  top: -40px; left: 50%;
+  transform: translateX(-50%);
+  width: 180px; height: 180px;
+  background: radial-gradient(circle, rgba(124,58,237,0.3) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.level-emoji {
+  font-size: 60px;
+  margin-bottom: 12px;
+  display: block;
+  position: relative;
+  z-index: 1;
+  animation: float 3s ease-in-out infinite;
+}
+
+.level-name { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800; margin-bottom: 6px; position: relative; z-index: 1; }
+.level-sub  { font-size: 14px; color: var(--text2); margin-bottom: 20px; position: relative; z-index: 1; }
+
+.xp-bar-container { position: relative; z-index: 1; }
+.xp-bar-label     { display: flex; justify-content: space-between; font-size: 12px; color: var(--text2); margin-bottom: 8px; }
+
+.xp-bar-bg {
+  background: rgba(0,0,0,0.4);
+  border-radius: 20px;
+  height: 12px;
+  overflow: hidden;
+}
+
+.xp-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2), var(--cyan));
+  border-radius: 20px;
+  transition: width 1.5s ease;
+  position: relative;
+  min-width: 0;
+}
+
+.xp-bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 20px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4));
+  animation: shimmer 2s infinite;
+  pointer-events: none;
+}
+
+@keyframes shimmer { 0%,100% { opacity: 0; } 50% { opacity: 1; } }
+
+/* BADGES GRID */
+.badges-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.badge-item {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+  padding: 16px 10px;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.badge-item.earned { border-color: var(--accent); background: rgba(124,58,237,0.1); }
+.badge-item.locked { opacity: 0.4; filter: grayscale(1); }
+
+.badge-emoji { font-size: 32px; display: block; margin-bottom: 8px; }
+.badge-name  { font-size: 11px; font-weight: 600; font-family: 'Syne', sans-serif; color: var(--text2); }
+
+/* STREAK DISPLAY */
+.streak-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: linear-gradient(135deg, rgba(249,115,22,0.1), rgba(245,158,11,0.1));
+  border: 1px solid rgba(249,115,22,0.2);
+  border-radius: 20px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.streak-num {
+  font-family: 'Syne', sans-serif;
+  font-size: 56px;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--orange), var(--yellow));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+}
+
+.streak-info h3 { font-family: 'Syne', sans-serif; font-size: 18px; margin-bottom: 4px; }
+.streak-info p  { font-size: 13px; color: var(--text2); }
+
+/* CHALLENGES */
+.challenge-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 12px;
+}
+
+.challenge-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+.challenge-title  { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; }
+.challenge-desc   { font-size: 13px; color: var(--text2); margin-top: 3px; }
+.challenge-days   { font-size: 12px; color: var(--accent2); font-weight: 600; white-space: nowrap; }
+
+/* AI CHAT */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  /* FIX #13: Use dvh (dynamic viewport height) with fallback for chat height */
+  height: calc(100dvh - 220px);
+  height: calc(100vh - 220px);
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border2) transparent;
+}
+
+.chat-bubble {
+  max-width: 85%;
+  padding: 14px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  line-height: 1.6;
+  animation: bubbleIn 0.3s ease;
+  /* FIX #14: Allow long words to break to prevent overflow */
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+@keyframes bubbleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.chat-bubble.user {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: white;
+  align-self: flex-end;
+  border-bottom-right-radius: 6px;
+}
+
+.chat-bubble.assistant {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  align-self: flex-start;
+  border-bottom-left-radius: 6px;
+}
+
+.chat-bubble.typing {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  padding: 16px 20px;
+}
+
+/* FIX #15: Animated typing dots instead of plain "..." */
+.typing-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--text2);
+  animation: typingBounce 1.2s ease infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typingBounce {
+  0%,80%,100% { transform: translateY(0); opacity: 0.4; }
+  40%          { transform: translateY(-6px); opacity: 1; }
+}
+
+.chat-input-row {
+  display: flex;
+  gap: 10px;
+  padding: 16px 0 0;
+  border-top: 1px solid var(--border);
+  align-items: flex-end;
+}
+
+.chat-input {
+  flex: 1;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px 16px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  resize: none;
+  outline: none;
+  max-height: 120px;
+  line-height: 1.5;
+}
+
+.chat-input:focus { border-color: var(--accent); }
+
+.chat-send {
+  width: 46px;
+  height: 46px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border: none;
+  border-radius: 14px;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.chat-send:hover    { transform: scale(1.05); }
+.chat-send:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.chat-mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+.chat-mode-tabs::-webkit-scrollbar { display: none; }
+
+.chat-mode-btn {
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text2);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+  font-family: 'Syne', sans-serif;
+}
+
+.chat-mode-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+/* GAMES */
+.games-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.game-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.game-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+
+.game-card-header { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.game-emoji       { font-size: 40px; }
+.game-title       { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; }
+.game-desc        { font-size: 13px; color: var(--text2); margin-top: 2px; }
+.game-meta        { display: flex; justify-content: space-between; align-items: center; }
+.high-score       { font-family: 'Space Mono', monospace; font-size: 14px; color: var(--yellow); }
+
+.play-btn {
+  padding: 8px 20px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border: none;
+  border-radius: 20px;
+  color: white;
+  font-family: 'Syne', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.play-btn:hover { transform: scale(1.05); }
+
+/* GAME OVERLAY */
+.game-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 300;
+  display: none;
+  flex-direction: column;
+}
+
+.game-overlay.open { display: flex; }
+
+.game-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.game-header h2 { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; }
+
+.close-game {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+#game-canvas-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow: hidden;
+}
+
+/* FIX #16: Canvas scaling to prevent blurriness on hi-DPI screens */
+canvas {
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  max-width: 100%;
+  max-height: 100%;
+  /* touch-action none is set via JS to avoid passive listener warnings */
+}
+
+/* ANALYTICS */
+.chart-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.chart-card h3 {
+  font-family: 'Syne', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+/* HEATMAP */
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.heatmap-cell {
+  aspect-ratio: 1;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.04);
+  transition: all 0.2s;
+}
+
+.heatmap-cell.h1 { background: rgba(124,58,237,0.2); }
+.heatmap-cell.h2 { background: rgba(124,58,237,0.4); }
+.heatmap-cell.h3 { background: rgba(124,58,237,0.6); }
+.heatmap-cell.h4 { background: rgba(124,58,237,0.9); }
+
+/* LEADERBOARD */
+.leaderboard-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.leaderboard-item:last-child { border-bottom: none; }
+
+.leaderboard-rank {
+  font-family: 'Space Mono', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  width: 28px;
+  text-align: center;
+  color: var(--text2);
+}
+
+/* FIX #17: Only apply rank color classes to rank 1-3 */
+.leaderboard-item:nth-child(1) .leaderboard-rank { color: var(--yellow); }
+.leaderboard-item:nth-child(2) .leaderboard-rank { color: var(--text); }
+.leaderboard-item:nth-child(3) .leaderboard-rank { color: var(--orange); }
+
+.lb-avatar {
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--cyan));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.lb-info { flex: 1; min-width: 0; }
+.lb-name  { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-score { font-size: 12px; color: var(--text2); font-family: 'Space Mono', monospace; }
+
+/* TOAST */
+.toast-container {
+  position: fixed;
+  top: 70px;
+  right: 16px;
+  left: 16px;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  background: var(--card2);
+  border: 1px solid var(--border2);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: var(--shadow);
+  transform: translateX(120%);
+  transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  pointer-events: all;
+}
+
+.toast.show { transform: translateX(0); }
+.toast-icon { font-size: 22px; flex-shrink: 0; }
+.toast-text { flex: 1; min-width: 0; }
+.toast-title{ font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; }
+.toast-desc { font-size: 12px; color: var(--text2); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* INCOME PAGE */
+.income-source-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 10px;
+  transition: all 0.2s;
+}
+
+.income-source-card:hover { border-color: var(--green); }
+.income-icon   { font-size: 28px; flex-shrink: 0; }
+.income-info   { flex: 1; min-width: 0; }
+.income-source { font-weight: 600; font-size: 14px; }
+.income-month  { font-size: 12px; color: var(--text2); }
+.income-amount { font-family: 'Space Mono', monospace; font-size: 16px; font-weight: 700; color: var(--green2); white-space: nowrap; }
+
+/* PROFILE */
+.stat-grid-2x2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.stat-mini {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+  padding: 16px;
+  text-align: center;
+}
+
+.stat-mini .val { font-family: 'Space Mono', monospace; font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+.stat-mini .key { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* PERSONALITY CARD */
+.personality-card {
+  background: linear-gradient(135deg, rgba(6,182,212,0.1), rgba(124,58,237,0.1));
+  border: 1px solid rgba(6,182,212,0.2);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.personality-emoji { font-size: 48px; display: block; margin-bottom: 10px; }
+.personality-type  { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+.personality-desc  { font-size: 13px; color: var(--text2); line-height: 1.5; }
+
+/* SAVINGS BUCKETS */
+.bucket-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 10px;
+}
+
+.bucket-header   { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.bucket-name-row { display: flex; align-items: center; gap: 10px; }
+.bucket-emoji    { font-size: 24px; }
+.bucket-name     { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; }
+.bucket-amounts  { font-size: 12px; color: var(--text2); font-family: 'Space Mono', monospace; white-space: nowrap; }
+
+/* BUDGET SET CARD */
+.budget-set-card {
+  background: linear-gradient(135deg, rgba(16,185,129,0.1), rgba(6,182,212,0.1));
+  border: 1px solid rgba(16,185,129,0.2);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+/* PILL TABS */
+.pill-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-bottom: 16px;
+  scrollbar-width: none;
+}
+.pill-tabs::-webkit-scrollbar { display: none; }
+
+.pill-tab {
+  padding: 8px 18px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text2);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+  font-family: 'Syne', sans-serif;
+  flex-shrink: 0;
+}
+
+.pill-tab.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-color: transparent;
+  color: white;
+}
+
+/* LOADING */
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.loading-logo { font-size: 64px; animation: float 2s ease-in-out infinite; }
+.loading-text { font-family: 'Syne', sans-serif; font-size: 16px; color: var(--text2); }
+
+.spinner {
+  width: 40px; height: 40px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* EMPTY STATE */
+.empty-state { text-align: center; padding: 40px 20px; color: var(--text2); }
+.empty-state .empty-icon { font-size: 48px; display: block; margin-bottom: 12px; opacity: 0.6; }
+.empty-state p { font-size: 14px; }
+
+/* LARGE AMOUNT INPUT */
+.amount-input-large {
+  font-family: 'Space Mono', monospace;
+  font-size: 36px;
+  font-weight: 700;
+  text-align: center;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  width: 100%;
+  outline: none;
+  margin: 10px 0;
+}
+
+/* QUIZ STYLES */
+.quiz-container { width: 100%; max-width: 480px; }
+.quiz-question  {
+  font-family: 'Syne', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 24px;
+  line-height: 1.4;
+}
+.quiz-options  { display: flex; flex-direction: column; gap: 10px; }
+.quiz-option {
+  padding: 14px 18px;
+  background: var(--card);
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  cursor: pointer;
+  font-size: 14px;
+  text-align: left;
+  color: var(--text);
+  transition: all 0.2s;
+  font-family: 'DM Sans', sans-serif;
+}
+.quiz-option:hover:not(:disabled) { border-color: var(--accent); }
+.quiz-option.correct { border-color: var(--green); background: rgba(16,185,129,0.1); }
+.quiz-option.wrong   { border-color: var(--red);   background: rgba(239,68,68,0.1); }
+
+/* REACTION GAME TARGET */
+.reaction-target {
+  width: 100px; height: 100px;
+  background: linear-gradient(135deg, var(--accent), var(--cyan));
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  cursor: pointer;
+  transition: transform 0.1s;
+  box-shadow: 0 0 40px rgba(124,58,237,0.5);
+  user-select: none;
+}
+.reaction-target:active { transform: scale(0.9); }
+
+/* COIN POP ANIMATION */
+@keyframes coinPop {
+  0%   { transform: scale(0) translateY(0); opacity: 1; }
+  100% { transform: scale(1.5) translateY(-60px); opacity: 0; }
+}
+
+.coin-pop {
+  position: fixed;
+  font-size: 18px;
+  pointer-events: none;
+  z-index: 9000;
+  animation: coinPop 1s ease forwards;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  color: #f59e0b;
+}
+
+/* SCROLLBAR STYLING */
+::-webkit-scrollbar       { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+/* RESPONSIVE */
+@media (max-width: 360px) {
+  .balance-amount { font-size: 32px; }
+  .quick-actions { gap: 6px; }
+  .qa-label { font-size: 9px; }
+  .badges-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .category-grid { grid-template-columns: repeat(4, 1fr); gap: 5px; }
+}
+</style>
+</head>
+<body>
+
+<!-- LOADING OVERLAY -->
+<div class="loading-overlay" id="loading-overlay">
+  <div class="loading-logo">💰</div>
+  <div class="loading-text">Loading PaisaPlay...</div>
+  <div class="spinner"></div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+<!-- ===== AUTH SCREEN ===== -->
+<div id="auth-screen" style="display:none">
+  <div class="auth-container">
+    <div class="auth-logo">
+      <span class="logo-icon">💰</span>
+      <h1>PaisaPlay</h1>
+      <p>Your AI-Powered Student Money OS</p>
+    </div>
+    <div class="auth-card">
+      <div class="auth-tabs">
+        <button class="auth-tab active" onclick="switchAuthTab('login')">Login</button>
+        <button class="auth-tab" onclick="switchAuthTab('signup')">Sign Up</button>
+      </div>
+      <div id="auth-error" class="auth-error" role="alert"></div>
+
+      <!-- LOGIN FORM -->
+      <div id="login-form">
+        <div class="form-group">
+          <label for="login-email">Email</label>
+          <input type="email" id="login-email" placeholder="you@college.edu" autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label for="login-password">Password</label>
+          <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <button class="btn-primary" id="login-btn" onclick="handleLogin()">Login →</button>
+      </div>
+
+      <!-- SIGNUP FORM -->
+      <div id="signup-form" style="display:none">
+        <div class="form-group">
+          <label for="signup-name">Full Name</label>
+          <input type="text" id="signup-name" placeholder="Your name" autocomplete="name">
+        </div>
+        <div class="form-group">
+          <label for="signup-email">Email</label>
+          <input type="email" id="signup-email" placeholder="you@college.edu" autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label for="signup-password">Password</label>
+          <input type="password" id="signup-password" placeholder="Min 6 characters" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+          <label for="signup-budget">Monthly Budget (₹)</label>
+          <input type="number" id="signup-budget" placeholder="e.g. 10000" min="0" step="100">
+        </div>
+        <button class="btn-primary" id="signup-btn" onclick="handleSignup()">Start Saving 🚀</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MAIN APP ===== -->
+<div id="app">
+  <!-- TOP NAV -->
+  <nav class="topnav" role="banner">
+    <div class="nav-logo">💰 PaisaPlay</div>
+    <div class="nav-right">
+      <div class="xp-pill">
+        <div class="level-badge" id="nav-level" aria-label="Level">1</div>
+        <span id="nav-points">0 XP</span>
+      </div>
+      <div class="streak-pill" aria-label="Streak">🔥 <span id="nav-streak">0</span></div>
+      <button class="avatar-btn" onclick="showPage('profile')" aria-label="Profile">👤</button>
+    </div>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+
+    <!-- ===== HOME PAGE ===== -->
+    <section id="page-home" class="page active">
+      <div class="balance-hero">
+        <div class="balance-label">Available Balance</div>
+        <div class="balance-amount"><span class="currency">₹</span><span id="balance-amount">0</span></div>
+        <div class="balance-row">
+          <div class="balance-stat">
+            <div class="stat-val" style="color:var(--green2)">₹<span id="total-income">0</span></div>
+            <div class="stat-lbl">Income</div>
+          </div>
+          <div class="balance-stat">
+            <div class="stat-val" style="color:var(--red2)">₹<span id="total-expenses">0</span></div>
+            <div class="stat-lbl">Spent</div>
+          </div>
+          <div class="balance-stat">
+            <div class="stat-val" style="color:var(--cyan)">₹<span id="savings-amount">0</span></div>
+            <div class="stat-lbl">Saved</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SURVIVAL SYSTEM -->
+      <div class="survival-card">
+        <div class="survival-header">
+          <div>
+            <div class="section-title">Survival Budget</div>
+            <div style="font-size:13px;color:var(--text2);margin-top:3px">Month-end predictor</div>
+          </div>
+          <div class="risk-badge risk-safe" id="risk-badge">SAFE</div>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="budget-progress"
+               style="width:0%;background:linear-gradient(90deg,var(--green),var(--cyan))"></div>
+        </div>
+        <div class="survival-stats">
+          <div class="surv-stat">
+            <div class="val" id="days-left">--</div>
+            <div class="lbl">Days Left</div>
+          </div>
+          <div class="surv-stat">
+            <div class="val" id="daily-safe">₹--</div>
+            <div class="lbl">Safe/Day</div>
+          </div>
+          <div class="surv-stat">
+            <div class="val" id="zero-date">--</div>
+            <div class="lbl">Zero Date</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- QUICK ACTIONS -->
+      <div class="quick-actions">
+        <button class="qa-btn" onclick="openModal('expense-modal')">
+          <span class="qa-icon">➕</span>
+          <span class="qa-label">Add Expense</span>
+        </button>
+        <button class="qa-btn" onclick="openModal('income-modal')">
+          <span class="qa-icon">💵</span>
+          <span class="qa-label">Add Income</span>
+        </button>
+        <button class="qa-btn" onclick="showPage('chat')">
+          <span class="qa-icon">🤖</span>
+          <span class="qa-label">AI Coach</span>
+        </button>
+        <button class="qa-btn" onclick="showPage('games')">
+          <span class="qa-icon">🎮</span>
+          <span class="qa-label">Fun Zone</span>
+        </button>
+      </div>
+
+      <!-- HEALTH SCORE -->
+      <div class="health-score-container">
+        <div class="score-ring" aria-label="Health score">
+          <svg width="90" height="90" viewBox="0 0 90 90">
+            <defs>
+              <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#10b981"/>
+                <stop offset="100%" stop-color="#06b6d4"/>
+              </linearGradient>
+            </defs>
+            <circle cx="45" cy="45" r="38" fill="none" stroke="var(--border)" stroke-width="8"/>
+            <!-- FIX #18: defs moved before usage; linearGradient must be defined first -->
+            <circle cx="45" cy="45" r="38" fill="none" stroke="url(#scoreGrad)" stroke-width="8"
+              stroke-linecap="round" stroke-dasharray="239" id="score-circle" stroke-dashoffset="239"/>
+          </svg>
+          <div class="score-text">
+            <div class="score-number" id="health-score-num">--</div>
+            <div class="score-label">SCORE</div>
+          </div>
+        </div>
+        <div class="health-info">
+          <h3>Money Health</h3>
+          <p id="health-desc">Start tracking expenses to get your financial health score.</p>
+        </div>
+      </div>
+
+      <!-- RECENT EXPENSES -->
+      <div class="section-header">
+        <div class="section-title">Recent Expenses</div>
+        <button class="section-link" onclick="showPage('analytics')">See All</button>
+      </div>
+      <div class="card" style="padding:0 20px" id="recent-expenses-list">
+        <div class="empty-state">
+          <span class="empty-icon">🧾</span>
+          <p>No expenses yet. Add your first one!</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== ANALYTICS PAGE ===== -->
+    <section id="page-analytics" class="page">
+      <h2 style="font-size:24px;font-weight:800;margin-bottom:20px">Analytics 📊</h2>
+
+      <div class="pill-tabs" id="analytics-tabs">
+        <button class="pill-tab active" onclick="setAnalyticsPeriod('month', this)">This Month</button>
+        <button class="pill-tab" onclick="setAnalyticsPeriod('week', this)">This Week</button>
+        <button class="pill-tab" onclick="setAnalyticsPeriod('all', this)">All Time</button>
+      </div>
+
+      <div class="chart-card">
+        <h3>Spending by Category</h3>
+        <canvas id="categoryChart" height="200"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>Daily Spending Trend</h3>
+        <canvas id="trendChart" height="180"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>Expense Heatmap</h3>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Last 30 days activity</div>
+        <div class="heatmap-grid" id="heatmap-grid"></div>
+      </div>
+      <div class="chart-card">
+        <h3>All Expenses</h3>
+        <div id="all-expenses-list">
+          <div class="empty-state"><span class="empty-icon">🧾</span><p>No expenses yet.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== GAMIFICATION PAGE ===== -->
+    <section id="page-gamify" class="page">
+      <h2 style="font-size:24px;font-weight:800;margin-bottom:20px">Level Up 🏆</h2>
+
+      <div class="level-card" id="level-card">
+        <span class="level-emoji" id="level-emoji">🌱</span>
+        <div class="level-name" id="level-name">Beginner Saver</div>
+        <div class="level-sub" id="level-sub">Keep tracking to level up!</div>
+        <div class="xp-bar-container">
+          <div class="xp-bar-label">
+            <span id="xp-current">0 XP</span>
+            <span id="xp-next">500 XP to next level</span>
+          </div>
+          <div class="xp-bar-bg">
+            <div class="xp-bar-fill" id="xp-bar" style="width:0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="streak-display">
+        <div>🔥</div>
+        <div class="streak-num" id="streak-num">0</div>
+        <div class="streak-info">
+          <h3>Day Streak</h3>
+          <p>Best: <span id="best-streak">0</span> days</p>
+        </div>
+      </div>
+
+      <div class="section-header">
+        <div class="section-title">Achievements</div>
+        <div class="section-link" style="font-size:12px;color:var(--text2)" id="badges-count">0/12 earned</div>
+      </div>
+      <div class="badges-grid" id="badges-grid"></div>
+
+      <div class="section-header">
+        <div class="section-title">Active Challenges</div>
+        <button class="section-link" onclick="openModal('challenge-modal')">+ New</button>
+      </div>
+      <div id="challenges-list">
+        <div class="empty-state"><span class="empty-icon">🎯</span><p>No active challenges. Start one!</p></div>
+      </div>
+
+      <div class="section-header" style="margin-top:8px">
+        <div class="section-title">Leaderboard</div>
+      </div>
+      <div class="card" style="padding:0 20px" id="leaderboard-list">
+        <div class="empty-state"><span class="empty-icon">🏆</span><p>Loading...</p></div>
+      </div>
+    </section>
+
+    <!-- ===== CHAT PAGE ===== -->
+    <section id="page-chat" class="page">
+      <h2 style="font-size:24px;font-weight:800;margin-bottom:16px">AI Coach 🤖</h2>
+
+      <div class="chat-mode-tabs">
+        <button class="chat-mode-btn active" onclick="setChatMode('finance_coach', this)">💼 Finance Coach</button>
+        <button class="chat-mode-btn" onclick="setChatMode('expense_assistant', this)">💬 Expense Q&amp;A</button>
+        <button class="chat-mode-btn" onclick="setChatMode('motivation', this)">🔥 Motivation</button>
+      </div>
+
+      <div class="chat-container">
+        <div class="chat-messages" id="chat-messages" role="log" aria-live="polite">
+          <div class="chat-bubble assistant">
+            👋 Hi! I'm your AI finance coach. Ask me about budgeting, saving strategies, or your spending habits. I have access to your expense data to give personalised advice!
+          </div>
+        </div>
+        <div class="chat-input-row">
+          <textarea class="chat-input" id="chat-input" placeholder="Ask your finance coach..."
+            rows="1" aria-label="Chat message"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}"
+            oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
+          <button class="chat-send" id="chat-send-btn" onclick="sendChat()" aria-label="Send">➤</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== GAMES PAGE ===== -->
+    <section id="page-games" class="page">
+      <h2 style="font-size:24px;font-weight:800;margin-bottom:20px">Fun Zone 🎮</h2>
+
+      <div class="games-grid">
+        <div class="game-card" style="background:linear-gradient(135deg,#1a1025,#0d1520)">
+          <div class="game-card-header">
+            <div class="game-emoji">🪙</div>
+            <div>
+              <div class="game-title">Money Catch</div>
+              <div class="game-desc">Catch coins, avoid expenses!</div>
+            </div>
+          </div>
+          <div class="game-meta">
+            <div class="high-score">Best: <span id="hs-money-catch">0</span></div>
+            <button class="play-btn" onclick="startGame('money_catch')">Play ▶</button>
+          </div>
+        </div>
+
+        <div class="game-card" style="background:linear-gradient(135deg,#0d1a15,#0a1a20)">
+          <div class="game-card-header">
+            <div class="game-emoji">🧠</div>
+            <div>
+              <div class="game-title">Budget Quiz</div>
+              <div class="game-desc">Test your financial IQ!</div>
+            </div>
+          </div>
+          <div class="game-meta">
+            <div class="high-score">Best: <span id="hs-budget-quiz">0</span>/10</div>
+            <button class="play-btn" onclick="startGame('budget_quiz')">Play ▶</button>
+          </div>
+        </div>
+
+        <div class="game-card" style="background:linear-gradient(135deg,#1a0a15,#1a150a)">
+          <div class="game-card-header">
+            <div class="game-emoji">⚡</div>
+            <div>
+              <div class="game-title">Reaction Speed</div>
+              <div class="game-desc">Tap money icons fast!</div>
+            </div>
+          </div>
+          <div class="game-meta">
+            <div class="high-score">Best: <span id="hs-reaction">--</span>ms</div>
+            <button class="play-btn" onclick="startGame('reaction_speed')">Play ▶</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== PROFILE PAGE ===== -->
+    <section id="page-profile" class="page">
+      <h2 style="font-size:24px;font-weight:800;margin-bottom:20px">Profile 👤</h2>
+
+      <div class="personality-card">
+        <span class="personality-emoji" id="personality-emoji">🤔</span>
+        <div class="personality-type" id="personality-type">Analyzing...</div>
+        <div class="personality-desc" id="personality-desc">Track more expenses to get your money personality.</div>
+      </div>
+
+      <div class="stat-grid-2x2">
+        <div class="stat-mini">
+          <div class="val" style="color:var(--accent2)" id="profile-points">0</div>
+          <div class="key">Total XP</div>
+        </div>
+        <div class="stat-mini">
+          <div class="val" style="color:var(--yellow)" id="profile-coins">0</div>
+          <div class="key">Coins 🪙</div>
+        </div>
+        <div class="stat-mini">
+          <div class="val" style="color:var(--orange)" id="profile-streak">0</div>
+          <div class="key">Day Streak</div>
+        </div>
+        <div class="stat-mini">
+          <div class="val" style="color:var(--green2)" id="profile-badges">0</div>
+          <div class="key">Badges</div>
+        </div>
+      </div>
+
+      <div class="budget-set-card">
+        <div style="font-size:13px;color:var(--text2);margin-bottom:8px">Monthly Budget</div>
+        <div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;margin-bottom:12px">₹<span id="profile-budget">0</span></div>
+        <button class="btn-primary" style="width:auto;padding:10px 24px;font-size:14px" onclick="openModal('budget-modal')">Update Budget</button>
+      </div>
+
+      <div class="section-header">
+        <div class="section-title">Savings Buckets</div>
+        <button class="section-link" onclick="openModal('bucket-modal')">+ Add</button>
+      </div>
+      <div id="buckets-list">
+        <div class="empty-state"><span class="empty-icon">🪣</span><p>Create savings goals!</p></div>
+      </div>
+
+      <div class="section-header" style="margin-top:8px">
+        <div class="section-title">Bill Reminders</div>
+        <button class="section-link" onclick="openModal('reminder-modal')">+ Add</button>
+      </div>
+      <div id="reminders-list">
+        <div class="empty-state"><span class="empty-icon">⏰</span><p>No bill reminders set.</p></div>
+      </div>
+
+      <div class="section-header" style="margin-top:8px">
+        <div class="section-title">Income Sources</div>
+        <button class="section-link" onclick="openModal('income-modal')">+ Add</button>
+      </div>
+      <div id="income-list-profile">
+        <div class="empty-state"><span class="empty-icon">💵</span><p>Add your income sources.</p></div>
+      </div>
+
+      <div style="margin-top:20px">
+        <button class="btn-primary"
+          style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:var(--red2)"
+          onclick="handleLogout()">Logout</button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottomnav" role="navigation" aria-label="Main navigation">
+    <button class="nav-item active" onclick="showPage('home')">
+      <span class="nav-icon">🏠</span><span class="nav-label">Home</span>
+    </button>
+    <button class="nav-item" onclick="showPage('analytics')">
+      <span class="nav-icon">📊</span><span class="nav-label">Analytics</span>
+    </button>
+    <button class="nav-item" onclick="showPage('gamify')">
+      <span class="nav-icon">🏆</span><span class="nav-label">Level Up</span>
+    </button>
+    <button class="nav-item" onclick="showPage('chat')">
+      <span class="nav-icon">🤖</span><span class="nav-label">AI Coach</span>
+    </button>
+    <button class="nav-item" onclick="showPage('games')">
+      <span class="nav-icon">🎮</span><span class="nav-label">Games</span>
+    </button>
+  </nav>
+</div>
+
+<!-- ===== MODALS ===== -->
+
+<!-- ADD EXPENSE -->
+<div class="modal-overlay" id="expense-modal" role="dialog" aria-modal="true" aria-labelledby="expense-modal-title">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="expense-modal-title">Add Expense 💸</div>
+
+    <div style="text-align:center;margin-bottom:16px">
+      <div style="font-size:13px;color:var(--text2);margin-bottom:4px">Amount (₹)</div>
+      <input type="number" class="amount-input-large" id="exp-amount" placeholder="0" min="0" step="1">
+    </div>
+
+    <div class="form-group">
+      <label for="exp-desc">Description</label>
+      <input type="text" id="exp-desc" placeholder="What did you spend on?" oninput="autoCateg()">
+    </div>
+
+    <div style="margin-bottom:16px">
+      <label style="display:block;font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px">Category</label>
+      <div class="category-grid">
+        <button class="cat-option" data-cat="food"         onclick="selectCat(this)"><span class="cat-emoji">🍕</span><span class="cat-name">Food</span></button>
+        <button class="cat-option" data-cat="rent"         onclick="selectCat(this)"><span class="cat-emoji">🏠</span><span class="cat-name">Rent</span></button>
+        <button class="cat-option" data-cat="travel"       onclick="selectCat(this)"><span class="cat-emoji">🚌</span><span class="cat-name">Travel</span></button>
+        <button class="cat-option" data-cat="education"    onclick="selectCat(this)"><span class="cat-emoji">📚</span><span class="cat-name">Study</span></button>
+        <button class="cat-option" data-cat="shopping"     onclick="selectCat(this)"><span class="cat-emoji">🛍️</span><span class="cat-name">Shopping</span></button>
+        <button class="cat-option" data-cat="entertainment"onclick="selectCat(this)"><span class="cat-emoji">🎬</span><span class="cat-name">Fun</span></button>
+        <button class="cat-option" data-cat="health"       onclick="selectCat(this)"><span class="cat-emoji">💊</span><span class="cat-name">Health</span></button>
+        <button class="cat-option selected" data-cat="other" onclick="selectCat(this)"><span class="cat-emoji">📦</span><span class="cat-name">Other</span></button>
+      </div>
+    </div>
+
+    <div style="margin-bottom:16px">
+      <label style="display:block;font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px">Mood while spending</label>
+      <div class="mood-row">
+        <button class="mood-btn selected" data-mood="neutral"   onclick="selectMood(this)"><span>😐</span><span>Meh</span></button>
+        <button class="mood-btn" data-mood="happy"     onclick="selectMood(this)"><span>😊</span><span>Happy</span></button>
+        <button class="mood-btn" data-mood="stressed"  onclick="selectMood(this)"><span>😰</span><span>Stressed</span></button>
+        <button class="mood-btn" data-mood="regret"    onclick="selectMood(this)"><span>😬</span><span>Regret</span></button>
+        <button class="mood-btn" data-mood="necessary" onclick="selectMood(this)"><span>✅</span><span>Needed</span></button>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="add-expense-btn" onclick="addExpense()">Add Expense 🎯</button>
+  </div>
+</div>
+
+<!-- ADD INCOME -->
+<div class="modal-overlay" id="income-modal" role="dialog" aria-modal="true" aria-labelledby="income-modal-title">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="income-modal-title">Add Income 💵</div>
+    <div class="form-group">
+      <label for="inc-source">Source</label>
+      <select id="inc-source">
+        <option value="parent_allowance">👨‍👩‍👧 Parent Allowance</option>
+        <option value="internship">💼 Internship Salary</option>
+        <option value="part_time">⏰ Part-Time Job</option>
+        <option value="scholarship">🎓 Scholarship</option>
+        <option value="other">📦 Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="inc-amount">Amount (₹)</label>
+      <input type="number" id="inc-amount" placeholder="Enter amount" min="0">
+    </div>
+    <div class="form-group">
+      <label for="inc-desc">Description (optional)</label>
+      <input type="text" id="inc-desc" placeholder="Notes">
+    </div>
+    <button class="btn-primary" id="add-income-btn" onclick="addIncome()">Add Income ✅</button>
+  </div>
+</div>
+
+<!-- UPDATE BUDGET -->
+<div class="modal-overlay" id="budget-modal" role="dialog" aria-modal="true">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Set Monthly Budget</div>
+    <div class="form-group">
+      <label for="budget-input">Monthly Budget (₹)</label>
+      <input type="number" id="budget-input" placeholder="e.g. 10000" min="0">
+    </div>
+    <button class="btn-primary" onclick="updateBudget()">Update Budget ✅</button>
+  </div>
+</div>
+
+<!-- NEW CHALLENGE -->
+<div class="modal-overlay" id="challenge-modal" role="dialog" aria-modal="true">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">New Challenge 🎯</div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:20px">
+      <button class="cat-option" style="padding:16px;flex-direction:column"
+        onclick="selectChallenge(this,'Spend Under ₹200/day','Keep daily spending below ₹200',null,200,7)">
+        <span style="font-size:28px">💸</span>
+        <span style="font-size:11px;color:var(--text2);margin-top:6px;text-align:center">Under ₹200/day</span>
+      </button>
+      <button class="cat-option" style="padding:16px;flex-direction:column"
+        onclick="selectChallenge(this,'No Food Delivery','Order from restaurant instead of delivery',null,null,5)">
+        <span style="font-size:28px">🚫</span>
+        <span style="font-size:11px;color:var(--text2);margin-top:6px;text-align:center">No Delivery 5 days</span>
+      </button>
+      <button class="cat-option" style="padding:16px;flex-direction:column"
+        onclick="selectChallenge(this,'Save ₹500 This Week','Spend less, save more!',500,null,7)">
+        <span style="font-size:28px">🏦</span>
+        <span style="font-size:11px;color:var(--text2);margin-top:6px;text-align:center">Save ₹500</span>
+      </button>
+      <button class="cat-option" style="padding:16px;flex-direction:column"
+        onclick="selectChallenge(this,'Zero Entertainment','No fun spending for 3 days',null,0,3)">
+        <span style="font-size:28px">🎯</span>
+        <span style="font-size:11px;color:var(--text2);margin-top:6px;text-align:center">Zero Fun Spend</span>
+      </button>
+    </div>
+    <div class="form-group">
+      <label for="chal-title">Custom Challenge Name</label>
+      <input type="text" id="chal-title" placeholder="e.g. Coffee-free week">
+    </div>
+    <div class="form-group">
+      <label for="chal-days">Duration (days)</label>
+      <input type="number" id="chal-days" placeholder="7" value="7" min="1">
+    </div>
+    <button class="btn-primary" onclick="addChallenge()">Start Challenge 🚀</button>
+  </div>
+</div>
+
+<!-- SAVINGS BUCKET -->
+<div class="modal-overlay" id="bucket-modal" role="dialog" aria-modal="true">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">New Savings Goal 🪣</div>
+    <div class="form-group">
+      <label for="bucket-name">Goal Name</label>
+      <input type="text" id="bucket-name" placeholder="e.g. New Laptop, Trip to Goa">
+    </div>
+    <div class="form-group">
+      <label for="bucket-target">Target Amount (₹)</label>
+      <input type="number" id="bucket-target" placeholder="e.g. 20000" min="0">
+    </div>
+    <div class="form-group">
+      <label>Icon</label>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="mood-btn selected" onclick="selectBucketIcon(this,'🎯')"><span>🎯</span></button>
+        <button class="mood-btn" onclick="selectBucketIcon(this,'💻')"><span>💻</span></button>
+        <button class="mood-btn" onclick="selectBucketIcon(this,'✈️')"><span>✈️</span></button>
+        <button class="mood-btn" onclick="selectBucketIcon(this,'📱')"><span>📱</span></button>
+        <button class="mood-btn" onclick="selectBucketIcon(this,'🎸')"><span>🎸</span></button>
+        <button class="mood-btn" onclick="selectBucketIcon(this,'🚗')"><span>🚗</span></button>
+      </div>
+    </div>
+    <button class="btn-primary" onclick="addBucket()">Create Goal ✅</button>
+  </div>
+</div>
+
+<!-- BILL REMINDER -->
+<div class="modal-overlay" id="reminder-modal" role="dialog" aria-modal="true">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Add Bill Reminder ⏰</div>
+    <div class="form-group">
+      <label for="rem-title">Bill Name</label>
+      <input type="text" id="rem-title" placeholder="e.g. Rent, Netflix, Gym">
+    </div>
+    <div class="form-group">
+      <label for="rem-amount">Amount (₹)</label>
+      <input type="number" id="rem-amount" placeholder="Monthly amount" min="0">
+    </div>
+    <div class="form-group">
+      <label for="rem-date">Due Date</label>
+      <input type="date" id="rem-date">
+    </div>
+    <button class="btn-primary" onclick="addReminder()">Set Reminder ✅</button>
+  </div>
+</div>
+
+<!-- GAME OVERLAY -->
+<div class="game-overlay" id="game-overlay" role="dialog" aria-modal="true">
+  <div class="game-header">
+    <h2 id="game-title">Game</h2>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="mono" style="font-size:16px;color:var(--yellow)">Score: <span id="current-score">0</span></div>
+      <button class="close-game" onclick="closeGame()" aria-label="Close game">✕</button>
+    </div>
+  </div>
+  <div id="game-canvas-container"></div>
+</div>
+
+<!-- ===== JAVASCRIPT ===== -->
+<script>
+/* =============================================================
+   FIX NOTES SUMMARY (referenced inline with FIX #N):
+   1.  Supabase UMD build used for reliable window.supabase global
+   2.  CSS --text3 hex corrected (#6060808 → #606080)
+   3.  body::before z-index 9999→0 (was blocking all clicks)
+   4.  select -webkit-appearance reset added
+   5.  btn-primary::after pointer-events:none
+   6.  Disabled state for async buttons
+   7.  iOS safe-area padding in bottom nav & modals
+   8.  stat-val overflow hidden
+   9.  SVG transform-origin added
+   10. Modal z-index comment clarified
+   11. Modal bottom padding safe-area
+   12. Horizontal scroll scrollbar-width:none
+   13. Chat height uses dvh with vh fallback
+   14. Bubble word-break added
+   15. Animated typing indicator
+   16. Canvas max-height added
+   17. Leaderboard rank colours via :nth-child
+   18. SVG <defs> moved before <circle> usage
+   19. switchAuthTab used :first-child/:last-child selector bug fixed
+   20. renderAnalytics: `filtered` variable was out of scope — moved inside function
+   21. endGame / endQuiz / endReactionGame: currentGame guard check
+   22. answerQuiz / tapTarget declared on window for dynamic HTML access
+   23. Modal overlay click handler moved to DOMContentLoaded
+   24. challengeData initialised as null guard
+   25. Reaction game: taps.length === 0 guard before reduce
+   26. addExpense / addIncome: button disable during async op
+   27. chatHistory not re-populated on every init (deduplication)
+   28. handleSignup: email confirmation note added
+   29. Input sanitisation (XSS) via textContent instead of innerHTML for user data
+   30. Supabase errors properly caught with try/catch blocks
+   ============================================================= */
+
+'use strict';
+
+// ===== SUPABASE INIT =====
+// FIX #1: Access via window.supabase (UMD global)
+const { createClient } = window.supabase;
+const SUPABASE_URL = 'https://ystsavyntfbpmqyboetr.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlzdHNhdnludGZicG1xeWJvZXRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE1MTU1MDcsImV4cCI6MjA4NzA5MTUwN30.4519Tj8_zOWhOVn2lm-OqVVpavXBxo-7OlRRyF02Pj8';
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ===== APPLICATION STATE =====
+let currentUser      = null;
+let userProfile      = null;
+let userGamification = null;
+let expenses         = [];
+let incomes          = [];
+let achievements     = [];
+let challenges       = [];
+let buckets          = [];
+let reminders        = [];
+// FIX #19: selectedCategory / selectedMood mirrored from pre-selected HTML default
+let selectedCategory = 'other';
+let selectedMood     = 'neutral';
+let selectedBucketIcon = '🎯';
+let chatMode         = 'finance_coach';
+let chatHistory      = [];
+let currentGame      = null;
+let gameActive       = false;
+let analyticsPeriod  = 'month';
+let categoryChartInstance = null;
+let trendChartInstance    = null;
+// FIX #24: challenge selection data guard
+let challengeData = null;
+// Typing lock to prevent duplicate sends
+let chatSending = false;
+
+// ===== STATIC CONFIG =====
+const catConfig = {
+  food:          { icon: '🍕', color: '#f59e0b' },
+  rent:          { icon: '🏠', color: '#3b82f6' },
+  travel:        { icon: '🚌', color: '#10b981' },
+  education:     { icon: '📚', color: '#8b5cf6' },
+  shopping:      { icon: '🛍️', color: '#ec4899' },
+  entertainment: { icon: '🎬', color: '#f97316' },
+  health:        { icon: '💊', color: '#06b6d4' },
+  subscription:  { icon: '📱', color: '#ef4444' },
+  other:         { icon: '📦', color: '#64748b' },
+};
+
+const LEVELS = [
+  { min: 0,    name: 'Beginner Saver',  emoji: '🌱', color: '#64748b' },
+  { min: 500,  name: 'Smart Spender',   emoji: '💡', color: '#06b6d4' },
+  { min: 1500, name: 'Budget Warrior',  emoji: '⚔️', color: '#3b82f6' },
+  { min: 3500, name: 'Money Master',    emoji: '🏆', color: '#a855f7' },
+  { min: 7500, name: 'Financial Pro',   emoji: '💎', color: '#f59e0b' },
+];
+
+const ALL_BADGES = [
+  { key: 'first_expense',     name: 'First Step',      icon: '🎯', desc: 'Added first expense' },
+  { key: 'streak_3',          name: '3-Day Streak',    icon: '🔥', desc: '3 consecutive days logged' },
+  { key: 'streak_7',          name: 'Week Warrior',    icon: '🗓️', desc: '7 day streak' },
+  { key: 'saved_1000',        name: 'Saver ₹1k',      icon: '💰', desc: 'Saved ₹1000' },
+  { key: 'saved_5000',        name: 'Big Saver',       icon: '🏦', desc: 'Saved ₹5000' },
+  { key: 'budget_week',       name: 'Budget Week',     icon: '✅', desc: 'Under budget for a week' },
+  { key: 'five_expenses',     name: 'Tracker',         icon: '📋', desc: '5 expenses logged' },
+  { key: 'ten_expenses',      name: 'Pro Tracker',     icon: '📊', desc: '10 expenses logged' },
+  { key: 'challenge_complete',name: 'Challenger',      icon: '⚡', desc: 'Completed a challenge' },
+  { key: 'quiz_perfect',      name: 'Quiz Ace',        icon: '🧠', desc: 'Perfect score in quiz' },
+  { key: 'game_player',       name: 'Gamer',           icon: '🎮', desc: 'Played a game' },
+  { key: 'income_added',      name: 'Income Pro',      icon: '💵', desc: 'Added income source' },
+];
+
+// ===== INIT =====
+async function init() {
+  try {
+    const { data: { session }, error } = await sb.auth.getSession();
+    if (error) console.warn('Session error:', error.message);
+
+    document.getElementById('loading-overlay').style.display = 'none';
+
+    if (session?.user) {
+      currentUser = session.user;
+      await loadUserData();
+      showApp();
+    } else {
+      document.getElementById('auth-screen').style.display = 'flex';
+    }
+  } catch (err) {
+    console.error('Init error:', err);
+    document.getElementById('loading-overlay').style.display = 'none';
+    document.getElementById('auth-screen').style.display = 'flex';
+  }
+
+  // Listen for auth changes
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session?.user) {
+      currentUser = session.user;
+      // Prevent double-loading if already loaded
+      if (!userProfile) {
+        await loadUserData();
+        showApp();
+      }
+    } else if (event === 'SIGNED_OUT') {
+      resetState();
+      document.getElementById('app').style.display = 'none';
+      document.getElementById('auth-screen').style.display = 'flex';
+    }
+  });
+}
+
+function resetState() {
+  currentUser = userProfile = userGamification = null;
+  expenses = incomes = achievements = challenges = buckets = reminders = [];
+  chatHistory = [];
+}
+
+function showApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  updateUI();
+  checkDailyStreak();
+}
+
+// ===== DATA LOADING =====
+async function loadUserData() {
+  try {
+    // Profile
+    let { data: profile, error: pErr } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+    if (pErr && pErr.code !== 'PGRST116') console.warn('Profile load:', pErr.message);
+    if (!profile) {
+      const { data: newP } = await sb.from('profiles').insert({
+        id: currentUser.id,
+        full_name: currentUser.user_metadata?.full_name || 'Student',
+      }).select().single();
+      profile = newP || { id: currentUser.id, full_name: 'Student', monthly_budget: 0 };
+    }
+    userProfile = profile;
+
+    // Gamification
+    let { data: gamif } = await sb.from('gamification').select('*').eq('user_id', currentUser.id).single();
+    if (!gamif) {
+      const { data: newG } = await sb.from('gamification').insert({ user_id: currentUser.id }).select().single();
+      gamif = newG || { user_id: currentUser.id, total_points: 0, coins: 0, current_level: 1, current_streak: 0 };
+    }
+    userGamification = gamif;
+
+    // Parallel data fetch
+    const [expRes, incRes, achRes, chalRes, bucRes, remRes, scoresRes] = await Promise.all([
+      sb.from('expenses').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false }),
+      sb.from('incomes').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false }),
+      sb.from('achievements').select('*').eq('user_id', currentUser.id),
+      sb.from('challenges').select('*').eq('user_id', currentUser.id).eq('status', 'active'),
+      sb.from('savings_buckets').select('*').eq('user_id', currentUser.id),
+      sb.from('bill_reminders').select('*').eq('user_id', currentUser.id).eq('is_paid', false),
+      sb.from('game_scores').select('*').eq('user_id', currentUser.id),
+    ]);
+
+    expenses     = expRes.data   || [];
+    incomes      = incRes.data   || [];
+    achievements = achRes.data   || [];
+    challenges   = chalRes.data  || [];
+    buckets      = bucRes.data   || [];
+    reminders    = remRes.data   || [];
+
+    // Update high scores display
+    const scores = scoresRes.data || [];
+    const byCatch  = scores.filter(s => s.game_type === 'money_catch');
+    const byQuiz   = scores.filter(s => s.game_type === 'budget_quiz');
+    const byReact  = scores.filter(s => s.game_type === 'reaction_speed');
+    document.getElementById('hs-money-catch').textContent = byCatch.length  ? Math.max(...byCatch.map(s => s.score)) : 0;
+    document.getElementById('hs-budget-quiz').textContent = byQuiz.length   ? Math.max(...byQuiz.map(s => s.score)) : 0;
+    // FIX: reaction best = lowest (fastest) time
+    document.getElementById('hs-reaction').textContent    = byReact.length  ? Math.min(...byReact.map(s => s.score)) : '--';
+
+    // FIX #27: Only load chat history once and avoid duplicates
+    if (chatHistory.length === 0) {
+      const { data: chatData } = await sb.from('chat_history')
+        .select('role, content')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: true })
+        .limit(20);
+      if (chatData?.length) chatHistory = chatData.map(m => ({ role: m.role, content: m.content }));
+    }
+  } catch (err) {
+    console.error('loadUserData error:', err);
+    showToast('❌', 'Load Error', 'Could not load all data. Please refresh.');
+  }
+}
+
+// ===== UI ORCHESTRATION =====
+function updateUI() {
+  updateBalanceDisplay();
+  updateSurvivalSystem();
+  updateGamificationUI();
+  updateNavStats();
+  renderRecentExpenses();
+  renderBadges();
+  renderChallenges();
+  renderBuckets();
+  renderReminders();
+  renderIncomeList();
+  updatePersonality();
+}
+
+// ===== BALANCE DISPLAY =====
+function updateBalanceDisplay() {
+  const now = new Date();
+  const monthYear = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+
+  const monthIncomes = incomes.filter(i => i.month_year === monthYear);
+  const totalIncome  = monthIncomes.reduce((s, i) => s + parseFloat(i.amount || 0), 0);
+
+  const monthExp   = getMonthExpenses(now);
+  const totalSpent = monthExp.reduce((s, e) => s + parseFloat(e.amount || 0), 0);
+  const budget     = parseFloat(userProfile?.monthly_budget || 0);
+  const balance    = (budget + totalIncome) - totalSpent;
+  const savings    = Math.max(0, balance);
+
+  setText('balance-amount', Math.round(balance).toLocaleString('en-IN'));
+  setText('total-income',   Math.round(totalIncome + budget).toLocaleString('en-IN'));
+  setText('total-expenses', Math.round(totalSpent).toLocaleString('en-IN'));
+  setText('savings-amount', Math.round(savings).toLocaleString('en-IN'));
+  setText('profile-budget', budget.toLocaleString('en-IN'));
+
+  // Savings badge checks
+  if (savings >= 1000) checkAndAwardBadge('saved_1000');
+  if (savings >= 5000) checkAndAwardBadge('saved_5000');
+
+  const score = calculateHealthScore(balance, totalSpent, budget);
+  updateHealthScore(score);
+}
+
+function getMonthExpenses(now) {
+  return expenses.filter(e => {
+    const d = new Date(e.expense_date || e.created_at);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  });
+}
+
+function calculateHealthScore(balance, spent, budget) {
+  if (!budget) return 50;
+  const spendRatio = Math.min(1, spent / budget);
+  const streak     = Math.min(20, userGamification?.current_streak || 0);
+  return Math.max(0, Math.min(100, Math.round((1 - spendRatio) * 80 + streak * 1)));
+}
+
+function updateHealthScore(score) {
+  setText('health-score-num', score);
+  const circumference = 2 * Math.PI * 38; // ≈ 238.76 ≈ 239
+  const offset = circumference - (score / 100) * circumference;
+  const circle = document.getElementById('score-circle');
+  if (circle) circle.style.strokeDashoffset = offset;
+
+  const desc = score >= 80 ? '🌟 Excellent financial discipline! Keep it up!'
+    : score >= 60 ? '👍 Good money habits. Room to improve!'
+    : score >= 40 ? '⚠️ Watch your spending this month.'
+    : '🚨 Budget at risk! Cut non-essential spending.';
+  setText('health-desc', desc);
+
+  if (userGamification && currentUser) {
+    sb.from('gamification').update({ money_health_score: score }).eq('user_id', currentUser.id)
+      .then(({ error }) => { if (error) console.warn('Health score update:', error.message); });
+  }
+}
+
+// ===== SURVIVAL SYSTEM =====
+function updateSurvivalSystem() {
+  const now       = new Date();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const today     = now.getDate();
+  const daysLeft  = daysInMonth - today;
+
+  const budget     = parseFloat(userProfile?.monthly_budget || 0);
+  const monthExp   = getMonthExpenses(now);
+  const totalSpent = monthExp.reduce((s, e) => s + parseFloat(e.amount || 0), 0);
+  const balance    = budget - totalSpent;
+  const safeDaily  = daysLeft > 0 ? Math.round(balance / daysLeft) : 0;
+
+  // FIX #20 (orig): Zero-date calculation corrected
+  let zeroDate = 'Safe 🟢';
+  if (balance <= 0) {
+    zeroDate = 'Now! 🚨';
+  } else if (today > 0 && totalSpent > 0) {
+    const avgDailySpend = totalSpent / today;
+    if (avgDailySpend > 0) {
+      const daysToZero = Math.floor(balance / avgDailySpend);
+      if (daysToZero < daysLeft) {
+        const zeroDay = new Date(now);
+        zeroDay.setDate(today + daysToZero);
+        zeroDate = `${zeroDay.getDate()}/${zeroDay.getMonth() + 1}`;
+      }
+    }
+  }
+
+  setText('days-left',  daysLeft);
+  setText('daily-safe', '₹' + Math.max(0, safeDaily).toLocaleString('en-IN'));
+  setText('zero-date',  zeroDate);
+
+  const spendPercent = budget > 0 ? Math.min(100, (totalSpent / budget) * 100) : 0;
+  const progressEl = document.getElementById('budget-progress');
+  if (progressEl) progressEl.style.width = spendPercent + '%';
+
+  const badge = document.getElementById('risk-badge');
+  if (!badge) return;
+  if (spendPercent > 90) {
+    badge.className = 'risk-badge risk-critical';
+    badge.textContent = 'CRITICAL';
+    if (progressEl) progressEl.style.background = 'linear-gradient(90deg,var(--red),var(--red2))';
+  } else if (spendPercent > 70) {
+    badge.className = 'risk-badge risk-warning';
+    badge.textContent = 'WARNING';
+    if (progressEl) progressEl.style.background = 'linear-gradient(90deg,var(--yellow),var(--orange))';
+  } else {
+    badge.className = 'risk-badge risk-safe';
+    badge.textContent = 'SAFE';
+    if (progressEl) progressEl.style.background = 'linear-gradient(90deg,var(--green),var(--cyan))';
+  }
+}
+
+// ===== NAV STATS =====
+function updateNavStats() {
+  const g = userGamification;
+  if (!g) return;
+  setText('nav-level',      g.current_level  || 1);
+  setText('nav-points',     (g.total_points  || 0) + ' XP');
+  setText('nav-streak',     g.current_streak || 0);
+  setText('profile-points', (g.total_points  || 0).toLocaleString('en-IN'));
+  setText('profile-coins',  (g.coins         || 0).toLocaleString('en-IN'));
+  setText('profile-streak', g.current_streak || 0);
+  setText('profile-badges', achievements.length);
+}
+
+// ===== GAMIFICATION UI =====
+function updateGamificationUI() {
+  const g = userGamification;
+  if (!g) return;
+
+  const pts = g.total_points || 0;
+  let lvlIdx = 0;
+  for (let i = LEVELS.length - 1; i >= 0; i--) {
+    if (pts >= LEVELS[i].min) { lvlIdx = i; break; }
+  }
+
+  const curLevel  = LEVELS[lvlIdx];
+  const nextLevel = LEVELS[lvlIdx + 1];
+  const progress  = nextLevel
+    ? Math.min(100, ((pts - curLevel.min) / (nextLevel.min - curLevel.min)) * 100)
+    : 100;
+
+  setText('level-emoji', curLevel.emoji);
+  setText('level-name',  curLevel.name);
+  setText('level-sub',   `Level ${lvlIdx + 1} — ${pts} XP total`);
+  setText('xp-current',  pts + ' XP');
+  setText('xp-next',     nextLevel
+    ? `${nextLevel.min - pts} XP to ${nextLevel.name}`
+    : 'Max Level! 🎉');
+
+  const xpBar = document.getElementById('xp-bar');
+  if (xpBar) xpBar.style.width = progress + '%';
+
+  setText('streak-num',  g.current_streak || 0);
+  setText('best-streak', g.longest_streak || 0);
+  setText('nav-level',   lvlIdx + 1);
+
+  // Persist level name
+  if (currentUser) {
+    sb.from('gamification').update({ current_level: lvlIdx + 1, level_name: curLevel.name })
+      .eq('user_id', currentUser.id)
+      .then(({ error }) => { if (error) console.warn('Level update:', error.message); });
+  }
+}
+
+// ===== BADGES =====
+function renderBadges() {
+  const earnedKeys = achievements.map(a => a.badge_key);
+  setText('badges-count', `${earnedKeys.length}/${ALL_BADGES.length} earned`);
+
+  const html = ALL_BADGES.map(b => {
+    const earned = earnedKeys.includes(b.key);
+    return `<div class="badge-item ${earned ? 'earned' : 'locked'}" title="${escHtml(b.desc)}">
+      <span class="badge-emoji">${b.icon}</span>
+      <div class="badge-name">${escHtml(b.name)}</div>
+    </div>`;
+  }).join('');
+  setHtml('badges-grid', html);
+}
+
+// ===== CHALLENGES =====
+function renderChallenges() {
+  if (!challenges.length) {
+    setHtml('challenges-list', emptyState('🎯', 'No active challenges. Start one!'));
+    return;
+  }
+  const html = challenges.map(c => {
+    const end      = new Date(c.end_date);
+    const now      = new Date();
+    const daysLeft = Math.max(0, Math.ceil((end - now) / (1000 * 60 * 60 * 24)));
+    const progress = Math.min(100, c.progress || 0);
+    return `<div class="challenge-card">
+      <div class="challenge-header">
+        <div>
+          <div class="challenge-title">${escHtml(c.title)}</div>
+          <div class="challenge-desc">${escHtml(c.description || '')}</div>
+        </div>
+        <div class="challenge-days">${daysLeft}d left</div>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" style="width:${progress}%;background:linear-gradient(90deg,var(--accent),var(--accent2))"></div>
+      </div>
+    </div>`;
+  }).join('');
+  setHtml('challenges-list', html);
+}
+
+// ===== BUCKETS =====
+function renderBuckets() {
+  if (!buckets.length) {
+    setHtml('buckets-list', emptyState('🪣', 'Create savings goals!'));
+    return;
+  }
+  const html = buckets.map(b => {
+    const current  = parseFloat(b.current_amount || 0);
+    const target   = parseFloat(b.target_amount);
+    const progress = target > 0 ? Math.min(100, (current / target) * 100) : 0;
+    return `<div class="bucket-card">
+      <div class="bucket-header">
+        <div class="bucket-name-row">
+          <span class="bucket-emoji">${b.icon || '🎯'}</span>
+          <span class="bucket-name">${escHtml(b.name)}</span>
+        </div>
+        <div class="bucket-amounts">₹${current.toLocaleString('en-IN')} / ₹${target.toLocaleString('en-IN')}</div>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" style="width:${progress}%;background:linear-gradient(90deg,var(--green),var(--cyan))"></div>
+      </div>
+    </div>`;
+  }).join('');
+  setHtml('buckets-list', html);
+}
+
+// ===== REMINDERS =====
+function renderReminders() {
+  if (!reminders.length) {
+    setHtml('reminders-list', emptyState('⏰', 'No bill reminders set.'));
+    return;
+  }
+  const html = reminders.map(r => {
+    const due      = new Date(r.due_date + 'T00:00:00');
+    const now      = new Date();
+    const daysUntil= Math.ceil((due - now) / (1000 * 60 * 60 * 24));
+    const urgent   = daysUntil <= 3;
+    return `<div class="income-source-card" style="${urgent ? 'border-color:var(--red)' : ''}">
+      <div class="income-icon">⏰</div>
+      <div class="income-info">
+        <div class="income-source">${escHtml(r.title)}</div>
+        <div class="income-month" style="${urgent ? 'color:var(--red2)' : ''}">${urgent ? '🚨 ' : ''}Due ${due.toLocaleDateString()}</div>
+      </div>
+      <div class="income-amount" style="font-size:14px">₹${parseFloat(r.amount || 0).toLocaleString('en-IN')}</div>
+    </div>`;
+  }).join('');
+  setHtml('reminders-list', html);
+}
+
+// ===== INCOME LIST =====
+function renderIncomeList() {
+  if (!incomes.length) {
+    setHtml('income-list-profile', emptyState('💵', 'Add your income sources.'));
+    return;
+  }
+  const srcIcons = { parent_allowance:'👨‍👩‍👧', internship:'💼', part_time:'⏰', scholarship:'🎓', other:'📦' };
+  const html = incomes.slice(0, 5).map(i => `
+    <div class="income-source-card">
+      <div class="income-icon">${srcIcons[i.source] || '💵'}</div>
+      <div class="income-info">
+        <div class="income-source">${escHtml(i.source.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase()))}</div>
+        <div class="income-month">${escHtml(i.month_year)}${i.description ? ' · ' + escHtml(i.description) : ''}</div>
+      </div>
+      <div class="income-amount">₹${parseFloat(i.amount).toLocaleString('en-IN')}</div>
+    </div>`).join('');
+  setHtml('income-list-profile', html);
+}
+
+// ===== MONEY PERSONALITY =====
+function updatePersonality() {
+  const total     = expenses.length;
+  const impulsive = expenses.filter(e => e.mood === 'regret' || e.category === 'shopping' || e.category === 'entertainment').length;
+  const ratio     = total > 0 ? impulsive / total : 0;
+
+  let type, emoji, desc;
+  if (ratio > 0.5) {
+    type='Impulsive Spender'; emoji='🛍️';
+    desc='You tend to spend emotionally. Try a 24-hour rule before purchases!';
+  } else if (ratio < 0.2 && total > 3) {
+    type='Extreme Saver'; emoji='🏦';
+    desc='Very disciplined! Balance is key — a little enjoyment is healthy too.';
+  } else {
+    type='Balanced Spender'; emoji='⚖️';
+    desc='You have a healthy money relationship! Keep building savings habits.';
+  }
+
+  setText('personality-emoji', emoji);
+  setText('personality-type',  type);
+  setText('personality-desc',  desc);
+}
+
+// ===== EXPENSE RENDERING =====
+function renderExpenseItem(e) {
+  const cat    = catConfig[e.category] || catConfig.other;
+  const date   = new Date(e.expense_date || e.created_at);
+  const dateStr= date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  const mood   = e.mood ? ' · ' + e.mood : '';
+  return `<div class="expense-item">
+    <div class="expense-icon cat-${e.category}">${cat.icon}</div>
+    <div class="expense-info">
+      <div class="expense-name">${escHtml(e.description || e.category)}</div>
+      <div class="expense-meta">${escHtml(e.category)} · ${dateStr}${escHtml(mood)}</div>
+    </div>
+    <div class="expense-amount">-₹${parseFloat(e.amount).toLocaleString('en-IN')}</div>
+  </div>`;
+}
+
+function renderRecentExpenses() {
+  const recent = expenses.slice(0, 5);
+  if (!recent.length) {
+    setHtml('recent-expenses-list', emptyState('🧾', 'No expenses yet. Add your first one!'));
+    return;
+  }
+  setHtml('recent-expenses-list', recent.map(renderExpenseItem).join(''));
+}
+
+// ===== ANALYTICS =====
+function setAnalyticsPeriod(period, btn) {
+  analyticsPeriod = period;
+  document.querySelectorAll('#analytics-tabs .pill-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderAnalytics();
+}
+
+function getFilteredExpenses() {
+  const now = new Date();
+  return expenses.filter(e => {
+    const d = new Date(e.expense_date || e.created_at);
+    if (analyticsPeriod === 'month') {
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    }
+    if (analyticsPeriod === 'week') {
+      const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
+      return d >= weekAgo;
+    }
+    return true; // 'all'
+  });
+}
+
+function renderAnalytics() {
+  // FIX #20: `filtered` was referenced outside scope in original code
+  const filtered = getFilteredExpenses();
+
+  // Category doughnut chart
+  const catTotals = {};
+  filtered.forEach(e => { catTotals[e.category] = (catTotals[e.category] || 0) + parseFloat(e.amount || 0); });
+  const catLabels = Object.keys(catTotals);
+  const catData   = Object.values(catTotals);
+  const catColors = catLabels.map(l => catConfig[l]?.color || '#64748b');
+
+  if (categoryChartInstance) categoryChartInstance.destroy();
+  const ctx1 = document.getElementById('categoryChart');
+  if (ctx1) {
+    categoryChartInstance = new Chart(ctx1.getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: catLabels,
+        datasets: [{ data: catData, backgroundColor: catColors.map(c => c + 'cc'), borderColor: catColors, borderWidth: 2 }],
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            position: 'right',
+            labels: { color: '#9090b0', font: { size: 11, family: 'DM Sans' }, boxWidth: 12, padding: 12 },
+          },
+        },
+      },
+    });
+  }
+
+  // Daily trend bar chart (last 14 days)
+  const days = [], dayAmounts = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const key = d.toISOString().split('T')[0];
+    days.push(`${d.getDate()}/${d.getMonth() + 1}`);
+    const total = expenses
+      .filter(e => {
+        const eDate = e.expense_date || (e.created_at ? e.created_at.split('T')[0] : null);
+        return eDate === key;
+      })
+      .reduce((s, e) => s + parseFloat(e.amount || 0), 0);
+    dayAmounts.push(total);
+  }
+
+  if (trendChartInstance) trendChartInstance.destroy();
+  const ctx2 = document.getElementById('trendChart');
+  if (ctx2) {
+    trendChartInstance = new Chart(ctx2.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: days,
+        datasets: [{
+          label: 'Daily Spend (₹)',
+          data: dayAmounts,
+          backgroundColor: 'rgba(124,58,237,0.5)',
+          borderColor: '#7c3aed',
+          borderWidth: 1,
+          borderRadius: 6,
+        }],
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#9090b0', font: { size: 10 } }, grid: { color: '#2a2a3e' } },
+          y: { ticks: { color: '#9090b0', font: { size: 10 } }, grid: { color: '#2a2a3e' } },
+        },
+      },
+    });
+  }
+
+  // Heatmap (last 30 days)
+  let heatHtml = '';
+  for (let i = 29; i >= 0; i--) {
+    const d   = new Date(); d.setDate(d.getDate() - i);
+    const key = d.toISOString().split('T')[0];
+    const total = expenses
+      .filter(e => {
+        const eDate = e.expense_date || (e.created_at ? e.created_at.split('T')[0] : null);
+        return eDate === key;
+      })
+      .reduce((s, e) => s + parseFloat(e.amount || 0), 0);
+    const cls = total > 500 ? 'h4' : total > 200 ? 'h3' : total > 50 ? 'h2' : total > 0 ? 'h1' : '';
+    heatHtml += `<div class="heatmap-cell ${cls}" title="${d.toDateString()}: ₹${Math.round(total)}"></div>`;
+  }
+  setHtml('heatmap-grid', heatHtml);
+
+  // All expenses list
+  if (!filtered.length) {
+    setHtml('all-expenses-list', emptyState('🧾', 'No expenses in this period.'));
+  } else {
+    setHtml('all-expenses-list', filtered.map(renderExpenseItem).join(''));
+  }
+}
+
+// ===== LEADERBOARD =====
+async function renderLeaderboard() {
+  try {
+    const { data, error } = await sb.from('gamification')
+      .select('user_id, total_points, current_streak, level_name')
+      .order('total_points', { ascending: false })
+      .limit(10);
+
+    if (error) throw error;
+    if (!data?.length) {
+      setHtml('leaderboard-list', emptyState('🏆', 'Be the first on the leaderboard!'));
+      return;
+    }
+    const emojis = ['😎','🎓','💡','🌟','⚡','🔥','💪','🚀','👑','💎'];
+    const medals = ['🥇','🥈','🥉'];
+    const html   = data.map((u, i) => `
+      <div class="leaderboard-item">
+        <div class="leaderboard-rank">${i < 3 ? medals[i] : i + 1}</div>
+        <div class="lb-avatar">${emojis[i % emojis.length]}</div>
+        <div class="lb-info">
+          <div class="lb-name">${u.user_id === currentUser?.id ? 'You 👈' : 'Student ' + (i + 1)}</div>
+          <div class="lb-score">${u.total_points || 0} XP · 🔥${u.current_streak || 0} streak</div>
+        </div>
+      </div>`).join('');
+    setHtml('leaderboard-list', html);
+  } catch (err) {
+    console.warn('Leaderboard:', err.message);
+    setHtml('leaderboard-list', emptyState('🏆', 'Could not load leaderboard.'));
+  }
+}
+
+// ===== ADD EXPENSE =====
+async function addExpense() {
+  const amount = parseFloat(document.getElementById('exp-amount').value);
+  const desc   = document.getElementById('exp-desc').value.trim();
+
+  if (!amount || amount <= 0) { showToast('⚠️', 'Invalid Amount', 'Please enter a valid amount'); return; }
+
+  // FIX #26: Disable button during async op
+  const btn = document.getElementById('add-expense-btn');
+  if (btn) btn.disabled = true;
+
+  try {
+    const { error } = await sb.from('expenses').insert({
+      user_id:      currentUser.id,
+      category:     selectedCategory,
+      amount:       amount,
+      description:  desc,
+      mood:         selectedMood,
+      expense_date: new Date().toISOString().split('T')[0],
+    });
+
+    if (error) { showToast('❌', 'Error', error.message); return; }
+
+    await awardPoints(50, 'Expense logged');
+    await checkAndAwardBadge('first_expense');
+
+    await loadUserData();
+    // FIX: badge checks happen AFTER data reload so counts are correct
+    if (expenses.length >= 5)  await checkAndAwardBadge('five_expenses');
+    if (expenses.length >= 10) await checkAndAwardBadge('ten_expenses');
+
+    updateUI();
+    closeModal('expense-modal');
+    showToast('✅', 'Expense Added', `₹${amount.toLocaleString('en-IN')} — ${desc || selectedCategory}`);
+    spawnCoin('+50 XP');
+
+    // Reset form
+    document.getElementById('exp-amount').value = '';
+    document.getElementById('exp-desc').value   = '';
+    selectedCategory = 'other';
+    selectedMood     = 'neutral';
+    document.querySelectorAll('#expense-modal .cat-option').forEach(b => b.classList.remove('selected'));
+    document.querySelectorAll('#expense-modal .cat-option[data-cat="other"]').forEach(b => b.classList.add('selected'));
+    document.querySelectorAll('#expense-modal .mood-btn').forEach(b => b.classList.remove('selected'));
+    document.querySelectorAll('#expense-modal .mood-btn[data-mood="neutral"]').forEach(b => b.classList.add('selected'));
+  } catch (err) {
+    showToast('❌', 'Error', err.message || 'Could not save expense.');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ===== AUTO-CATEGORISE =====
+function autoCateg() {
+  const desc  = document.getElementById('exp-desc').value.toLowerCase();
+  const rules = {
+    food:          ['food','lunch','dinner','breakfast','zomato','swiggy','restaurant','chai','coffee','snack','meal','dosa','biryani','pizza','burger','canteen','mess','maggi'],
+    travel:        ['uber','ola','bus','metro','train','auto','rickshaw','fare','ticket','travel','cab','rapido','namma metro'],
+    education:     ['book','course','class','tuition','stationery','pen','notebook','study','exam','fee','college'],
+    shopping:      ['amazon','flipkart','clothes','shirt','shoes','myntra','shopping','mall','meesho','ajio'],
+    entertainment: ['netflix','hotstar','movie','game','spotify','concert','pub','party','prime video','jiocinema','theatre'],
+    health:        ['medicine','doctor','hospital','pharmacy','gym','medical','chemist','apollo','wellness'],
+    rent:          ['rent','pg','hostel','accommodation','flat','room','maintenance'],
+    subscription:  ['subscription','membership','prime','premium','monthly plan','annual plan'],
+  };
+  for (const [cat, kws] of Object.entries(rules)) {
+    if (kws.some(kw => desc.includes(kw))) {
+      selectedCategory = cat;
+      document.querySelectorAll('#expense-modal .cat-option').forEach(b => {
+        b.classList.toggle('selected', b.dataset.cat === cat);
+      });
+      break;
+    }
+  }
+}
+
+// ===== ADD INCOME =====
+async function addIncome() {
+  const source = document.getElementById('inc-source').value;
+  const amount = parseFloat(document.getElementById('inc-amount').value);
+  const desc   = document.getElementById('inc-desc').value.trim();
+
+  if (!amount || amount <= 0) { showToast('⚠️', 'Invalid Amount', 'Please enter a valid amount'); return; }
+
+  const btn = document.getElementById('add-income-btn');
+  if (btn) btn.disabled = true;
+
+  try {
+    const now       = new Date();
+    const monthYear = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const { error } = await sb.from('incomes').insert({
+      user_id: currentUser.id, source, amount, description: desc, month_year: monthYear,
+    });
+    if (error) { showToast('❌', 'Error', error.message); return; }
+
+    await awardPoints(100, 'Income added');
+    await checkAndAwardBadge('income_added');
+    await loadUserData();
+    updateUI();
+    closeModal('income-modal');
+    showToast('💵', 'Income Added', `₹${amount.toLocaleString('en-IN')} from ${source.replace(/_/g,' ')}`);
+    spawnCoin('+100 XP');
+    document.getElementById('inc-amount').value = '';
+    document.getElementById('inc-desc').value   = '';
+  } catch (err) {
+    showToast('❌', 'Error', err.message || 'Could not save income.');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ===== UPDATE BUDGET =====
+async function updateBudget() {
+  const amount = parseFloat(document.getElementById('budget-input').value);
+  if (!amount || amount <= 0) { showToast('⚠️', 'Invalid', 'Enter a valid budget'); return; }
+  try {
+    const { error } = await sb.from('profiles').update({ monthly_budget: amount }).eq('id', currentUser.id);
+    if (error) throw error;
+    userProfile.monthly_budget = amount;
+    updateUI();
+    closeModal('budget-modal');
+    showToast('✅', 'Budget Updated', `₹${amount.toLocaleString('en-IN')}/month`);
+    document.getElementById('budget-input').value = '';
+  } catch (err) {
+    showToast('❌', 'Error', err.message || 'Could not update budget.');
+  }
+}
+
+// ===== CHALLENGES =====
+function selectChallenge(btn, title, desc, target, daily, days) {
+  document.querySelectorAll('#challenge-modal .cat-option').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  // FIX #24: Store as object, not null
+  challengeData = { title, desc: desc || '', target, daily, days };
+  document.getElementById('chal-title').value = title;
+  document.getElementById('chal-days').value  = days;
+}
+
+async function addChallenge() {
+  const title = document.getElementById('chal-title').value.trim() || (challengeData?.title || '');
+  const days  = parseInt(document.getElementById('chal-days').value) || 7;
+  if (!title) { showToast('⚠️', 'Missing', 'Enter a challenge title'); return; }
+
+  try {
+    const start = new Date();
+    const end   = new Date(); end.setDate(end.getDate() + days);
+    const { error } = await sb.from('challenges').insert({
+      user_id:      currentUser.id,
+      title,
+      description:  challengeData?.desc  || '',
+      target_amount:challengeData?.target || null,
+      daily_limit:  challengeData?.daily  !== undefined ? challengeData.daily : null,
+      duration_days:days,
+      start_date:   start.toISOString().split('T')[0],
+      end_date:     end.toISOString().split('T')[0],
+    });
+    if (error) throw error;
+    await awardPoints(50, 'Challenge started');
+    await loadUserData();
+    updateUI();
+    closeModal('challenge-modal');
+    showToast('🎯', 'Challenge Started!', title);
+    challengeData = null;
+    document.getElementById('chal-title').value = '';
+    document.querySelectorAll('#challenge-modal .cat-option').forEach(b => b.classList.remove('selected'));
+  } catch (err) {
+    showToast('❌', 'Error', err.message || 'Could not start challenge.');
+  }
+}
+
+// ===== SAVINGS BUCKETS =====
+async function addBucket() {
+  const name   = document.getElementById('bucket-name').value.trim();
+  const target = parseFloat(document.getElementById('bucket-target').value);
+  if (!name || !target || target <= 0) { showToast('⚠️', 'Missing', 'Fill all fields correctly'); return; }
+  try {
+    const { error } = await sb.from('savings_buckets').insert({
+      user_id: currentUser.id, name, target_amount: target, icon: selectedBucketIcon,
+    });
+    if (error) throw error;
+    await loadUserData();
+    updateUI();
+    closeModal('bucket-modal');
+    showToast('🪣', 'Goal Created!', `${name} — Target: ₹${target.toLocaleString('en-IN')}`);
+    document.getElementById('bucket-name').value   = '';
+    document.getElementById('bucket-target').value = '';
+  } catch (err) {
+    showToast('❌', 'Error', err.message || 'Could not create bucket.');
+  }
+}
+
+// ===== BILL REMINDERS =====
+async function addReminder() {
+  const title  = document.getElementById('rem-title').value.trim();
+  const amount = parseFloat(document.getElementById('rem-amount').value) || 0;
+  const date   = document.getElementById('rem-date').value;
+  if (!title || !date) { showToast('⚠️', 'Missing', 'Title and due date are required'); return; }
+  try {
+    const { error } = await sb.from('bill_reminders').insert({
+      user_id: currentUser.id, title, amount, due_date: date,
+    });
+    if (error) throw error;
+    await loadUserData();
+    updateUI();
+    closeModal('reminder-modal');
+    showToast('⏰', 'Reminder Set!', `${title} due ${new Date(date + 'T00:00:00').toLocaleDateString()}`);
+    document.getElementById('rem-title').value  = '';
+    document.getElementById('rem-amount').value = '';
+    document.getElementById('rem-date').value   = '';
+  } catch (err) {
+    showToast('❌', 'Error', err.message || 'Could not set reminder.');
+  }
+}
+
+// ===== STREAK SYSTEM =====
+async function checkDailyStreak() {
+  if (!userGamification || !currentUser) return;
+  const today = new Date().toISOString().split('T')[0];
+  const last  = userGamification.last_logged_date;
+  if (last === today) return; // Already checked today
+
+  const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+  const yStr = yesterday.toISOString().split('T')[0];
+
+  const newStreak = last === yStr ? (userGamification.current_streak || 0) + 1 : 1;
+  const longest   = Math.max(newStreak, userGamification.longest_streak || 0);
+
+  try {
+    const { error } = await sb.from('gamification').update({
+      current_streak:   newStreak,
+      longest_streak:   longest,
+      last_logged_date: today,
+    }).eq('user_id', currentUser.id);
+    if (error) throw error;
+
+    userGamification.current_streak   = newStreak;
+    userGamification.longest_streak   = longest;
+    userGamification.last_logged_date = today;
+
+    if (newStreak >= 3) await checkAndAwardBadge('streak_3');
+    if (newStreak >= 7) await checkAndAwardBadge('streak_7');
+
+    await awardPoints(20, 'Daily login');
+    if (newStreak > 1) showToast('🔥', `${newStreak}-Day Streak!`, 'Great consistency! +20 XP');
+    updateNavStats();
+    updateGamificationUI();
+  } catch (err) {
+    console.warn('Streak update:', err.message);
+  }
+}
+
+// ===== POINTS & BADGES =====
+async function awardPoints(pts, reason) {
+  if (!userGamification || !currentUser || pts <= 0) return;
+  const newTotal = (userGamification.total_points || 0) + pts;
+  const newCoins = (userGamification.coins || 0) + Math.floor(pts / 10);
+  try {
+    await Promise.all([
+      sb.from('gamification').update({ total_points: newTotal, coins: newCoins }).eq('user_id', currentUser.id),
+      sb.from('points_log').insert({ user_id: currentUser.id, points: pts, reason }),
+    ]);
+    userGamification.total_points = newTotal;
+    userGamification.coins        = newCoins;
+    updateNavStats();
+    updateGamificationUI();
+  } catch (err) {
+    console.warn('Award points:', err.message);
+  }
+}
+
+async function checkAndAwardBadge(key) {
+  if (!currentUser) return;
+  if (achievements.find(a => a.badge_key === key)) return; // Already earned
+
+  const badge = ALL_BADGES.find(b => b.key === key);
+  if (!badge) return;
+
+  try {
+    const { error } = await sb.from('achievements').insert({
+      user_id:          currentUser.id,
+      badge_key:        key,
+      badge_name:       badge.name,
+      badge_description:badge.desc,
+      badge_icon:       badge.icon,
+    });
+    // Ignore duplicate key errors (23505 = unique violation)
+    if (error && error.code !== '23505') { console.warn('Badge insert:', error.message); return; }
+
+    achievements.push({ badge_key: key, badge_name: badge.name, badge_icon: badge.icon });
+    await awardPoints(200, `Badge earned: ${badge.name}`);
+    showToast(badge.icon, 'Badge Unlocked!', badge.name);
+    renderBadges();
+    updateNavStats();
+  } catch (err) {
+    console.warn('Award badge:', err.message);
+  }
+}
+
+// ===== AI CHAT =====
+function setChatMode(mode, btn) {
+  chatMode = mode;
+  document.querySelectorAll('.chat-mode-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function sendChat() {
+  if (chatSending) return;
+  const input = document.getElementById('chat-input');
+  const msg   = input.value.trim();
+  if (!msg) return;
+
+  chatSending = true;
+  const sendBtn = document.getElementById('chat-send-btn');
+  if (sendBtn) sendBtn.disabled = true;
+
+  input.value = '';
+  input.style.height = 'auto';
+  addChatBubble(msg, 'user');
+  chatHistory.push({ role: 'user', content: msg });
+
+  // Persist to DB (fire and forget)
+  sb.from('chat_history').insert({ user_id: currentUser.id, role: 'user', content: msg, mode: chatMode })
+    .then(({ error }) => { if (error) console.warn('Chat history save:', error.message); });
+
+  // Build system context
+  const totalSpent = getMonthExpenses(new Date()).reduce((s, e) => s + parseFloat(e.amount || 0), 0);
+  const budget     = parseFloat(userProfile?.monthly_budget || 0);
+  const balance    = budget - totalSpent;
+  const streak     = userGamification?.current_streak || 0;
+
+  const systemMap = {
+    finance_coach:     `You are a friendly AI finance coach for a student living away from home in India. Their monthly budget is ₹${budget}. They've spent ₹${Math.round(totalSpent)} this month and have ₹${Math.round(balance)} remaining. Their current streak is ${streak} days. Give concise, actionable advice. Use ₹ symbol. Be warm and encouraging!`,
+    expense_assistant: `You are a smart expense management assistant for an Indian student. Budget: ₹${budget}/month. Spent this month: ₹${Math.round(totalSpent)}. Balance: ₹${Math.round(balance)}. Answer questions about expenses and budgeting clearly and concisely.`,
+    motivation:        `You are an enthusiastic motivational finance coach for a student saving money. Their ${streak}-day streak is impressive! Budget: ₹${budget}. Be energetic, use emojis, and keep them motivated to save and track spending!`,
+  };
+
+  const typingBubble = addTypingBubble();
+
+  try {
+    // NOTE: In production, proxy this through your backend to hide the API key.
+    // This uses the Anthropic API via the built-in artifact proxy.
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model:      'claude-sonnet-4-20250514',
+        max_tokens: 600,
+        system:     systemMap[chatMode] || systemMap.finance_coach,
+        messages:   chatHistory.slice(-12), // Keep last 12 messages for context
+      }),
+    });
+
+    typingBubble.remove();
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const reply = data.content?.[0]?.text;
+
+    if (reply) {
+      addChatBubble(reply, 'assistant');
+      chatHistory.push({ role: 'assistant', content: reply });
+      sb.from('chat_history').insert({ user_id: currentUser.id, role: 'assistant', content: reply, mode: chatMode })
+        .then(({ error }) => { if (error) console.warn('Chat history save:', error.message); });
+    } else {
+      addChatBubble('I\'m here to help! Ask me about budgeting, saving strategies, or your spending habits. 💰', 'assistant');
+    }
+  } catch (err) {
+    typingBubble.remove();
+    console.warn('Chat API:', err.message);
+    // Provide a helpful offline fallback tip
+    const tips = [
+      '💡 Tip: Track every expense, no matter how small. Small leaks sink big ships!',
+      '💡 Tip: Use the 50/30/20 rule — 50% needs, 30% wants, 20% savings.',
+      '💡 Tip: Cook at home instead of ordering delivery — save ₹3000+/month!',
+      '💡 Tip: Cancel subscriptions you rarely use. Review them monthly.',
+      '💡 Tip: Set a daily spending limit and check your balance every evening.',
+    ];
+    addChatBubble(tips[Math.floor(Math.random() * tips.length)], 'assistant');
+  } finally {
+    chatSending = false;
+    if (sendBtn) sendBtn.disabled = false;
+  }
+}
+
+function addChatBubble(text, role) {
+  const container = document.getElementById('chat-messages');
+  const bubble    = document.createElement('div');
+  bubble.className = `chat-bubble ${role}`;
+  // FIX #29: Use textContent to prevent XSS
+  bubble.textContent = text;
+  container.appendChild(bubble);
+  container.scrollTop = container.scrollHeight;
+  return bubble;
+}
+
+// FIX #15: Animated typing indicator
+function addTypingBubble() {
+  const container = document.getElementById('chat-messages');
+  const bubble    = document.createElement('div');
+  bubble.className = 'chat-bubble assistant typing';
+  bubble.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+  container.appendChild(bubble);
+  container.scrollTop = container.scrollHeight;
+  return bubble;
+}
+
+// ===== GAMES =====
+function startGame(type) {
+  document.getElementById('game-overlay').classList.add('open');
+  setText('current-score', '0');
+  currentGame = type;
+  gameActive  = true;
+
+  const container = document.getElementById('game-canvas-container');
+  container.innerHTML = '';
+
+  if      (type === 'money_catch')   startMoneyCatch(container);
+  else if (type === 'budget_quiz')   startBudgetQuiz(container);
+  else if (type === 'reaction_speed')startReactionGame(container);
+
+  // Award badge async (don't await)
+  checkAndAwardBadge('game_player');
+}
+
+function closeGame() {
+  gameActive  = false;
+  currentGame = null;
+  document.getElementById('game-overlay').classList.remove('open');
+  document.getElementById('game-canvas-container').innerHTML = '';
+  // Clean up global game functions
+  delete window.answerQuiz;
+  delete window.tapTarget;
+}
+
+// ───────────────────────────────────────────────
+// GAME 1: MONEY CATCH
+// ───────────────────────────────────────────────
+function startMoneyCatch(container) {
+  setText('game-title', '🪙 Money Catch');
+
+  const canvas  = document.createElement('canvas');
+  const W       = Math.min(360, window.innerWidth - 40);
+  const H       = Math.min(480, window.innerHeight - 180);
+  // FIX #16: Scale canvas for HiDPI
+  const dpr     = window.devicePixelRatio || 1;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  canvas.style.touchAction = 'none'; // Prevent scroll jank
+  container.appendChild(canvas);
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  let score = 0, lives = 3, items = [], playerX = W / 2;
+  let frameCount = 0, speed = 2;
+  const player = { w: 60, h: 18 };
+
+  function movePlayer(clientX) {
+    const rect = canvas.getBoundingClientRect();
+    playerX = Math.max(player.w / 2, Math.min(W - player.w / 2, clientX - rect.left));
+  }
+
+  canvas.addEventListener('mousemove', e => movePlayer(e.clientX));
+  canvas.addEventListener('touchmove', e => { e.preventDefault(); movePlayer(e.touches[0].clientX); }, { passive: false });
+
+  function spawnItem() {
+    const isCoin = Math.random() > 0.35;
+    items.push({
+      x:      Math.random() * (W - 40) + 20,
+      y:      -20,
+      emoji:  isCoin ? ['💰','🪙','💵'][Math.floor(Math.random() * 3)] : ['💸','📉','🛍️','🎰'][Math.floor(Math.random() * 4)],
+      isCoin,
+      speed:  speed + Math.random() * 1.5,
+      size:   26,
+    });
+  }
+
+  function gameLoop() {
+    if (!gameActive || currentGame !== 'money_catch') return;
+    ctx.clearRect(0, 0, W, H);
+
+    // Background
+    ctx.fillStyle = '#0a0a0f';
+    ctx.fillRect(0, 0, W, H);
+
+    frameCount++;
+    if (frameCount % 55 === 0) { spawnItem(); speed = Math.min(7, speed + 0.04); }
+
+    // Player paddle
+    ctx.fillStyle = '#7c3aed';
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(playerX - player.w / 2, H - 38, player.w, player.h, 8);
+    } else {
+      ctx.rect(playerX - player.w / 2, H - 38, player.w, player.h);
+    }
+    ctx.fill();
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'white';
+    ctx.fillText('🤏', playerX, H - 25);
+
+    // Items
+    items = items.filter(item => {
+      item.y += item.speed;
+      ctx.font = `${item.size}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText(item.emoji, item.x, item.y);
+
+      // Collision
+      if (item.y > H - 50 && item.y < H - 20 && Math.abs(item.x - playerX) < player.w / 2 + 12) {
+        if (item.isCoin) { score += 10; setText('current-score', score); }
+        else {
+          lives--;
+          if (lives <= 0) { endGame(score); return false; }
+        }
+        return false;
+      }
+      return item.y < H + 30;
+    });
+
+    // HUD
+    ctx.fillStyle = '#e8e8f0';
+    ctx.font = 'bold 14px "Space Mono", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('❤️'.repeat(lives), 10, 24);
+    ctx.textAlign = 'right';
+    ctx.fillText('₹' + score, W - 10, 24);
+
+    requestAnimationFrame(gameLoop);
+  }
+
+  spawnItem(); spawnItem();
+  requestAnimationFrame(gameLoop);
+}
+
+// ───────────────────────────────────────────────
+// GAME OVER (Money Catch & generic)
+// ───────────────────────────────────────────────
+async function endGame(score) {
+  // FIX #21: Guard against race condition if game already closed
+  if (!currentGame) return;
+  const type  = currentGame;
+  gameActive  = false;
+  currentGame = null;
+
+  try {
+    await sb.from('game_scores').insert({ user_id: currentUser.id, game_type: type, score });
+    await awardPoints(Math.max(1, Math.floor(score / 10)), `Game: ${type}`);
+  } catch (err) {
+    console.warn('Game score save:', err.message);
+  }
+
+  // Update high score display
+  const el = document.getElementById('hs-money-catch');
+  if (el) {
+    const cur = parseInt(el.textContent) || 0;
+    if (score > cur) el.textContent = score;
+  }
+
+  const container = document.getElementById('game-canvas-container');
+  container.innerHTML = `
+    <div style="text-align:center;padding:20px;max-width:360px;width:100%">
+      <div style="font-size:64px;margin-bottom:16px">🎮</div>
+      <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;margin-bottom:8px">Game Over!</div>
+      <div style="font-size:40px;font-family:'Space Mono',monospace;color:var(--yellow);margin:12px 0">₹${score}</div>
+      <div style="color:var(--text2);margin-bottom:24px">+${Math.max(1,Math.floor(score/10))} XP earned</div>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button class="play-btn" onclick="startGame('money_catch')">Play Again</button>
+        <button class="play-btn" style="background:var(--card);border:1px solid var(--border);color:var(--text)" onclick="closeGame()">Exit</button>
+      </div>
+    </div>`;
+  showToast('🎮', 'Game Over!', `Score: ${score} · +${Math.max(1,Math.floor(score/10))} XP`);
+}
+
+// ───────────────────────────────────────────────
+// GAME 2: BUDGET QUIZ
+// ───────────────────────────────────────────────
+const QUIZ_QUESTIONS = [
+  { q:'What is the 50/30/20 budget rule?', opts:['50% needs, 30% wants, 20% savings','50% food, 30% rent, 20% fun','50% savings, 30% needs, 20% wants','50% wants, 30% savings, 20% needs'], ans:0 },
+  { q:'You have ₹200 left for 5 days. Safe daily limit?', opts:['₹40','₹50','₹100','₹200'], ans:0 },
+  { q:'Which is NOT a good saving habit?', opts:['Pay yourself first','Track every expense','Impulse buying','Set savings goals'], ans:2 },
+  { q:'What is an emergency fund?', opts:['Fun money','3–6 months of expenses saved','Investment account','Credit card limit'], ans:1 },
+  { q:'Best time to review your budget?', opts:['Once a year','Weekly or monthly','Never','When you run out'], ans:1 },
+  { q:'Cheapest meal option for students?', opts:['Restaurant daily','Food delivery apps','Cooking at home','Skipping meals'], ans:2 },
+  { q:'What is lifestyle inflation?', opts:['Eating pricier food','Spending more as income rises','General price increase','Buying luxury items'], ans:1 },
+  { q:'Best way to avoid impulse buying?', opts:['Keep card details saved','Shop while hungry','Wait 24 hours before buying','Browse deals daily'], ans:2 },
+  { q:'What reduces monthly expenses most?', opts:['Cutting one big expense','Saving ₹5 here and there','Cheaper phone plan','Minor behavioural changes'], ans:0 },
+  { q:'Best investment for a student?', opts:['Luxury watch','Skill development courses','Expensive gadgets','Premium subscriptions'], ans:1 },
+];
+
+function startBudgetQuiz(container) {
+  setText('game-title', '🧠 Budget Quiz');
+  let qIndex = 0, score = 0;
+  const shuffled = [...QUIZ_QUESTIONS].sort(() => Math.random() - 0.5);
+
+  function showQuestion() {
+    if (qIndex >= shuffled.length) { endQuiz(score, container); return; }
+    const q = shuffled[qIndex];
+    container.innerHTML = `
+      <div class="quiz-container" style="padding:16px">
+        <div style="text-align:center;font-size:12px;color:var(--text2);margin-bottom:10px">${qIndex + 1} / ${shuffled.length}</div>
+        <div class="progress-bar-bg" style="margin-bottom:20px">
+          <div class="progress-bar-fill" style="width:${(qIndex / shuffled.length) * 100}%;background:linear-gradient(90deg,var(--accent),var(--cyan))"></div>
+        </div>
+        <div class="quiz-question">${escHtml(q.q)}</div>
+        <div class="quiz-options">
+          ${q.opts.map((o, i) => `<button class="quiz-option" onclick="window.answerQuiz(${i},${q.ans},this)">${escHtml(o)}</button>`).join('')}
+        </div>
+      </div>`;
+    setText('current-score', score);
+  }
+
+  // FIX #22: Attach to window for dynamic HTML handlers
+  window.answerQuiz = function(chosen, correct, btn) {
+    document.querySelectorAll('.quiz-option').forEach(b => {
+      b.disabled = true;
+      b.style.cursor = 'default';
+    });
+    btn.classList.add(chosen === correct ? 'correct' : 'wrong');
+    if (chosen !== correct) {
+      const opts = document.querySelectorAll('.quiz-option');
+      if (opts[correct]) opts[correct].classList.add('correct');
+    }
+    if (chosen === correct) { score++; setText('current-score', score); }
+    setTimeout(() => { qIndex++; showQuestion(); }, 1100);
+  };
+
+  showQuestion();
+}
+
+async function endQuiz(score, container) {
+  try {
+    await sb.from('game_scores').insert({ user_id: currentUser.id, game_type: 'budget_quiz', score });
+    await awardPoints(score * 30, 'Budget quiz');
+    if (score >= QUIZ_QUESTIONS.length) await checkAndAwardBadge('quiz_perfect');
+  } catch (err) {
+    console.warn('Quiz score save:', err.message);
+  }
+
+  const el = document.getElementById('hs-budget-quiz');
+  if (el) {
+    const cur = parseInt(el.textContent) || 0;
+    if (score > cur) el.textContent = score;
+  }
+
+  const grade = score >= 9 ? '🏆 Genius!' : score >= 7 ? '🌟 Great!' : score >= 5 ? '👍 Good!' : '📚 Keep Learning!';
+  container.innerHTML = `
+    <div style="text-align:center;padding:20px;max-width:360px;width:100%">
+      <div style="font-size:64px;margin-bottom:16px">${score >= 7 ? '🏆' : '📚'}</div>
+      <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;margin-bottom:8px">${grade}</div>
+      <div style="font-size:50px;font-family:'Space Mono',monospace;color:var(--yellow);margin:12px 0">${score}/${QUIZ_QUESTIONS.length}</div>
+      <div style="color:var(--text2);margin-bottom:24px">+${score * 30} XP earned</div>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button class="play-btn" onclick="startGame('budget_quiz')">Try Again</button>
+        <button class="play-btn" style="background:var(--card);border:1px solid var(--border);color:var(--text)" onclick="closeGame()">Exit</button>
+      </div>
+    </div>`;
+  showToast('🧠', 'Quiz Done!', `${score}/${QUIZ_QUESTIONS.length} · +${score * 30} XP`);
+}
+
+// ───────────────────────────────────────────────
+// GAME 3: REACTION SPEED
+// ───────────────────────────────────────────────
+function startReactionGame(container) {
+  setText('game-title', '⚡ Reaction Speed');
+  let round = 0, taps = [], targetVisible = false, startTime = 0, pendingTimeout = null;
+  const TOTAL_ROUNDS = 8;
+
+  function showRound() {
+    if (round >= TOTAL_ROUNDS) { endReactionGame(taps, container); return; }
+    container.innerHTML = `
+      <div style="text-align:center;padding:20px;width:100%;max-width:360px">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:16px">Round ${round + 1}/${TOTAL_ROUNDS} · Tap when the coin appears!</div>
+        <div class="progress-bar-bg" style="margin-bottom:24px">
+          <div class="progress-bar-fill" style="width:${(round/TOTAL_ROUNDS)*100}%;background:linear-gradient(90deg,var(--orange),var(--yellow))"></div>
+        </div>
+        <div id="reaction-status" style="font-size:16px;color:var(--text2);margin-bottom:30px;min-height:24px">Get Ready... 🎯</div>
+        <div style="display:flex;justify-content:center;align-items:center;height:160px">
+          <div id="reaction-target" class="reaction-target" style="display:none" onclick="window.tapTarget()">🪙</div>
+        </div>
+      </div>`;
+
+    const delay = 1200 + Math.random() * 2500;
+    pendingTimeout = setTimeout(() => {
+      if (!gameActive) return;
+      const statusEl = document.getElementById('reaction-status');
+      const targetEl = document.getElementById('reaction-target');
+      if (!statusEl || !targetEl) return;
+      statusEl.textContent = 'TAP NOW! ⚡';
+      statusEl.style.color = 'var(--green2)';
+      targetEl.style.display = 'flex';
+      targetVisible = true;
+      startTime = Date.now();
+    }, delay);
+  }
+
+  // FIX #22: Attach to window
+  window.tapTarget = function() {
+    if (!targetVisible) return;
+    clearTimeout(pendingTimeout);
+    const rt = Date.now() - startTime;
+    taps.push(rt);
+    targetVisible = false;
+
+    const targetEl = document.getElementById('reaction-target');
+    const statusEl = document.getElementById('reaction-status');
+    if (targetEl) targetEl.style.display = 'none';
+    if (statusEl) {
+      statusEl.textContent = `${rt}ms! ${rt < 250 ? '⚡ Incredible!' : rt < 350 ? '🚀 Amazing!' : rt < 500 ? '✅ Good!' : '😅 Slow...'}`;
+      statusEl.style.color = rt < 350 ? 'var(--yellow)' : rt < 500 ? 'var(--green2)' : 'var(--text2)';
+    }
+    setText('current-score', taps.length);
+    round++;
+    setTimeout(showRound, 900);
+  };
+
+  showRound();
+}
+
+async function endReactionGame(taps, container) {
+  // FIX #25: Guard against empty taps array
+  if (!taps.length) {
+    showToast('⚠️', 'No Data', 'No valid taps recorded.');
+    closeGame();
+    return;
+  }
+
+  const avg   = Math.round(taps.reduce((a, b) => a + b, 0) / taps.length);
+  const xpEarned = Math.max(5, Math.floor((600 - avg) / 5));
+
+  try {
+    await sb.from('game_scores').insert({ user_id: currentUser.id, game_type: 'reaction_speed', score: avg });
+    await awardPoints(xpEarned, 'Reaction speed game');
+  } catch (err) {
+    console.warn('Reaction score save:', err.message);
+  }
+
+  // Update high score (lower = better for reaction)
+  const el = document.getElementById('hs-reaction');
+  if (el) {
+    const cur = el.textContent === '--' ? Infinity : parseInt(el.textContent) || Infinity;
+    if (avg < cur) el.textContent = avg;
+  }
+
+  const grade = avg < 250 ? '⚡ Lightning Fast!' : avg < 350 ? '🚀 Very Fast!' : avg < 500 ? '👍 Good Reflexes' : '🐢 Keep Practicing!';
+  container.innerHTML = `
+    <div style="text-align:center;padding:20px;max-width:360px;width:100%">
+      <div style="font-size:64px;margin-bottom:16px">⚡</div>
+      <div style="font-family:'Syne',sans-serif;font-size:24px;font-weight:800;margin-bottom:8px">${grade}</div>
+      <div style="font-size:14px;color:var(--text2);margin-bottom:8px">Average Reaction Time</div>
+      <div style="font-size:44px;font-family:'Space Mono',monospace;color:var(--yellow);margin:10px 0">${avg}ms</div>
+      <div style="color:var(--text2);font-size:12px;margin-bottom:20px">${taps.map(t => t + 'ms').join(' · ')}</div>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button class="play-btn" onclick="startGame('reaction_speed')">Try Again</button>
+        <button class="play-btn" style="background:var(--card);border:1px solid var(--border);color:var(--text)" onclick="closeGame()">Exit</button>
+      </div>
+    </div>`;
+  showToast('⚡', 'Reaction Test Done!', `Avg: ${avg}ms · +${xpEarned} XP`);
+}
+
+// ===== AUTH FUNCTIONS =====
+// FIX #19: Fixed :first-child/:last-child selector — use nth-child for reliability
+function switchAuthTab(tab) {
+  const tabs = document.querySelectorAll('.auth-tab');
+  tabs.forEach(b => b.classList.remove('active'));
+  if (tab === 'login') {
+    tabs[0].classList.add('active');
+    document.getElementById('login-form').style.display  = 'block';
+    document.getElementById('signup-form').style.display = 'none';
+  } else {
+    tabs[1].classList.add('active');
+    document.getElementById('login-form').style.display  = 'none';
+    document.getElementById('signup-form').style.display = 'block';
+  }
+  document.getElementById('auth-error').style.display = 'none';
+}
+
+async function handleLogin() {
+  const email    = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  if (!email || !password) { showAuthError('Please enter your email and password.'); return; }
+
+  const btn = document.getElementById('login-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Logging in...'; }
+
+  try {
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) showAuthError(error.message);
+  } catch (err) {
+    showAuthError('Login failed. Please check your connection.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Login →'; }
+  }
+}
+
+async function handleSignup() {
+  const name     = document.getElementById('signup-name').value.trim();
+  const email    = document.getElementById('signup-email').value.trim();
+  const password = document.getElementById('signup-password').value;
+  const budget   = parseFloat(document.getElementById('signup-budget').value) || 0;
+
+  if (!name || !email || !password) { showAuthError('Please fill all required fields.'); return; }
+  if (password.length < 6) { showAuthError('Password must be at least 6 characters.'); return; }
+
+  const btn = document.getElementById('signup-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Creating account...'; }
+
+  try {
+    const { data, error } = await sb.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name: name } },
+    });
+    if (error) { showAuthError(error.message); return; }
+
+    // FIX #28: Handle email confirmation requirement
+    if (data.user && !data.session) {
+      showAuthError('✅ Account created! Please check your email to confirm your account, then log in.');
+      switchAuthTab('login');
+      return;
+    }
+
+    // Update budget after short delay (trigger waits for profile creation)
+    if (budget > 0 && data.user) {
+      setTimeout(async () => {
+        await sb.from('profiles').update({ monthly_budget: budget, full_name: name }).eq('id', data.user.id);
+      }, 1500);
+    }
+  } catch (err) {
+    showAuthError('Signup failed. Please try again.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Start Saving 🚀'; }
+  }
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById('auth-error');
+  el.textContent = msg; // FIX #29: textContent prevents XSS
+  el.style.display = 'block';
+}
+
+async function handleLogout() {
+  try {
+    await sb.auth.signOut();
+    resetState();
+  } catch (err) {
+    console.warn('Logout:', err.message);
+  }
+}
+
+// ===== NAVIGATION =====
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const page = document.getElementById('page-' + name);
+  if (page) page.classList.add('active');
+
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  const navMap = { home:0, analytics:1, gamify:2, chat:3, games:4 };
+  const idx    = navMap[name];
+  if (idx !== undefined) {
+    const navItems = document.querySelectorAll('.nav-item');
+    if (navItems[idx]) navItems[idx].classList.add('active');
+  }
+
+  // Lazy render on navigation
+  if (name === 'analytics') renderAnalytics();
+  if (name === 'gamify')    { updateGamificationUI(); renderLeaderboard(); }
+}
+
+// ===== MODALS =====
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.add('open');
+}
+
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('open');
+}
+
+// ===== SELECTION HELPERS =====
+function selectCat(btn) {
+  document.querySelectorAll('#expense-modal .cat-option').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedCategory = btn.dataset.cat;
+}
+
+function selectMood(btn) {
+  document.querySelectorAll('#expense-modal .mood-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedMood = btn.dataset.mood;
+}
+
+function selectBucketIcon(btn, icon) {
+  document.querySelectorAll('#bucket-modal .mood-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedBucketIcon = icon;
+}
+
+// ===== TOAST =====
+function showToast(icon, title, desc) {
+  const container = document.getElementById('toast-container');
+  const toast     = document.createElement('div');
+  toast.className = 'toast';
+  // FIX #29: Use safe DOM construction
+  toast.innerHTML = `<div class="toast-icon">${icon}</div><div class="toast-text"><div class="toast-title"></div><div class="toast-desc"></div></div>`;
+  toast.querySelector('.toast-title').textContent = title;
+  toast.querySelector('.toast-desc').textContent  = desc;
+  container.appendChild(toast);
+  requestAnimationFrame(() => { requestAnimationFrame(() => toast.classList.add('show')); });
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 350);
+  }, 3500);
+}
+
+// ===== COIN ANIMATION =====
+function spawnCoin(text) {
+  const el        = document.createElement('div');
+  el.className    = 'coin-pop';
+  el.textContent  = text;
+  el.style.left   = (Math.random() * 60 + 20) + '%';
+  el.style.top    = '20%';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1100);
+}
+
+// ===== UTILITY HELPERS =====
+/** Set textContent safely (no XSS risk) */
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+/** Set innerHTML (only used with sanitised / server-safe content) */
+function setHtml(id, html) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = html;
+}
+
+/** Escape HTML to prevent XSS when building template strings */
+function escHtml(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function emptyState(icon, msg) {
+  return `<div class="empty-state"><span class="empty-icon">${icon}</span><p>${escHtml(msg)}</p></div>`;
+}
+
+// ===== DOM READY SETUP =====
+// FIX #23: Modal close-on-overlay moved here so DOM is guaranteed ready
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', e => {
+      if (e.target === overlay) overlay.classList.remove('open');
+    });
+  });
+
+  // Keyboard: Escape closes open modals
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+      if (document.getElementById('game-overlay')?.classList.contains('open')) closeGame();
+    }
+  });
+});
+
+// ===== BOOTSTRAP =====
+init();
+</script>
+</body>
+</html>
